@@ -1,4 +1,4 @@
-/* Sap's Rotation — platform layer for the standalone web app.
+/* Rotation — platform layer for the standalone web app.
    Gives the app the same small API it had inside claude.ai (claude.use("db" | "assets" | "sample")):
    - db: documents cached on the device (IndexedDB) and synced to the user's own Supabase project
    - assets: photos cached on the device and stored in a private Supabase bucket
@@ -63,7 +63,9 @@
       syncState.s === "syncing" ? "Syncing…" : syncState.s === "error" ? "Sync paused" : "Synced";
     el.textContent = t; el.dataset.state = cfg.mode !== "cloud" ? "local" : !navigator.onLine ? "offline" : syncState.s;
     el.title = syncState.msg || "";
+    el.onclick = () => { if (syncState.s === "error" && syncState.msg) alertBox("Sync paused: " + syncState.msg) };
   }
+  function alertBox(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; d.style.bottom = "calc(90px + env(safe-area-inset-bottom,0px))"; document.body.appendChild(d); setTimeout(() => d.remove(), 6000) }
   const queue = o => cfg.mode === "cloud" ? idb.put("outbox", o, okey()) : Promise.resolve();
 
   let flushing = false, flushAgain = false;
@@ -254,13 +256,13 @@
     const blobs = {}; const ids = [...blobIds()]; let n = 0;
     for (const id of ids) { status?.(`Packing photos ${++n} of ${ids.length}…`); const b = await getBlob(id); if (b) blobs[id] = await blobToDataURL(b) }
     const file = new Blob([JSON.stringify({ app: "saps-rotation", version: 1, at: Date.now(), docs, blobs })], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = `saps-rotation-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = `rotation-backup-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 30000);
     return { docs: Object.values(docs).reduce((t, x) => t + Object.keys(x).length, 0), photos: Object.keys(blobs).length };
   }
   async function importBackup(file, status) {
     const j = JSON.parse(await file.text());
-    if (j.app !== "saps-rotation" || !j.docs) throw new Error("That file isn't a Sap's Rotation backup.");
+    if (j.app !== "saps-rotation" || !j.docs) throw new Error("That file isn't a Rotation backup.");
     const ids = Object.keys(j.blobs || {}); let n = 0;
     for (const id of ids) {
       status?.(`Adding photos ${++n} of ${ids.length}…`);
@@ -274,7 +276,7 @@
   }
 
   /* ---------- setup + sign-in ---------- */
-  const SQL = `-- Sap's Rotation: run once in Supabase → SQL Editor
+  const SQL = `-- Rotation: run once in Supabase → SQL Editor
 create table if not exists public.docs (
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
   coll text not null,
@@ -284,6 +286,8 @@ create table if not exists public.docs (
   primary key (user_id, coll, id)
 );
 alter table public.docs enable row level security;
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.docs to authenticated;
 drop policy if exists "own docs" on public.docs;
 create policy "own docs" on public.docs for all to authenticated
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -304,6 +308,8 @@ create policy "own photos remove" on storage.objects for delete to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);`;
 
   let resolveReady; const ready = new Promise(r => resolveReady = r);
+  // Resolves once this device has pulled the signed-in account's data (or gave up trying), so the app knows whether this is a brand-new user.
+  let resolveFirst; const firstSync = new Promise(r => resolveFirst = r);
   let started = false;
   function makeClient(url, key) { return window.supabase.createClient(url.trim().replace(/\/+$/, ""), key.trim(), { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rot-auth" } }) }
 
@@ -317,7 +323,7 @@ create policy "own photos remove" on storage.objects for delete to authenticated
     const el = $("setup"); el.hidden = false; document.body.classList.add("locked");
     const box = $("setup-body");
     if (step === "choose") {
-      box.innerHTML = `<p class="label">Welcome</p><h2>Set up Sap's Rotation</h2>
+      box.innerHTML = `<p class="label">Welcome</p><h2>Set up Rotation</h2>
         <p class="muted">Sync keeps your closet the same on your phone and laptop, using your own free Supabase project. You can also keep everything on this device and turn sync on later.</p>
         <div class="su-actions"><button class="btn" id="su-cloud">Set up sync</button><button class="btn ghost" id="su-local">Use on this device only</button></div>`;
       $("su-cloud").onclick = () => showSetup("keys");
@@ -345,30 +351,32 @@ create policy "own photos remove" on storage.objects for delete to authenticated
           const c = makeClient(url, key);
           const { error } = await c.from("docs").select("id").limit(1);
           if (error && /does not exist|schema cache|relation/i.test(error.message)) { $("su-msg").textContent = "Connected, but the setup code hasn't been run yet. Run it in the SQL Editor, then press Connect again."; return }
-          if (error && !/JWT|permission|row-level/i.test(error.message)) { $("su-msg").textContent = "Supabase said: " + error.message; return }
+          if (error && /permission denied/i.test(error.message)) { $("su-msg").textContent = "Connected, but the table isn't open to your account yet. Run the latest setup code again, then press Connect."; return }
+          if (error && !/JWT|row-level/i.test(error.message)) { $("su-msg").textContent = "Supabase said: " + error.message; return }
           sb = c; cfg.url = url; cfg.key = key; saveCfg(cfg); showSetup("auth");
         } catch (e) { $("su-msg").textContent = "Couldn't reach that project. Check the URL and your connection." }
       };
     } else if (step === "choose-local") {
       showSetup("keys");
     } else if (step === "auth") {
-      box.innerHTML = `<p class="label">Step 2 of 2 · Your account</p><h2>Sign in to sync</h2>
-        <p class="muted">This account lives in your own Supabase project. Use the same email and password on every device.</p>
+      const preset = !!(window.ROTATION_CONFIG && window.ROTATION_CONFIG.url);
+      box.innerHTML = `<p class="label">${preset ? "Your account" : "Step 2 of 2 · Your account"}</p><h2>${preset ? "Sign in or join" : "Sign in to sync"}</h2>
+        <p class="muted">${preset ? "New here? Enter your email and a password, then tap Create account. Already have one? Sign in and your closet downloads from sync. Your closet is private to your account." : "This account lives in your own Supabase project. Use the same email and password on every device."}</p>
         <div class="field"><label class="label" for="su-email">Email</label><input type="text" id="su-email" inputmode="email" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
         <div class="field"><label class="label" for="su-pass">Password</label><input type="password" id="su-pass" autocomplete="current-password"></div>
         <p class="status" id="su-msg" aria-live="polite">${esc(msg)}</p>
         <div class="su-actions"><button class="btn" id="su-in">Sign in</button><button class="btn ghost" id="su-up">Create account</button></div>
-        <p class="muted" style="font-size:.85rem">After you create your account, turn off new sign-ups in Supabase (Authentication → Sign In / Providers → "Allow new users to sign up") so nobody else can use your project.</p>
-        <button class="btn ghost small" id="su-change">Use a different project</button>`;
+        ${preset ? "" : `<p class="muted" style="font-size:.85rem">After you create your account, turn off new sign-ups in Supabase (Authentication → Sign In / Providers → "Allow new users to sign up") so nobody else can use your project.</p>`}
+        ${preset ? "" : `<button class="btn ghost small" id="su-change" style="align-self:flex-start">Use a different project</button>`}`;
       $("su-email").value = email || "";
-      $("su-change").onclick = () => showSetup("keys");
+      if ($("su-change")) $("su-change").onclick = () => showSetup("keys");
       const go = async up => {
         const em = $("su-email").value.trim(), pw = $("su-pass").value;
         if (!/.+@.+\..+/.test(em) || pw.length < 6) { $("su-msg").textContent = "Enter your email and a password of at least 6 characters."; return }
         $("su-msg").textContent = up ? "Creating your account…" : "Signing in…";
-        const r = up ? await sb.auth.signUp({ email: em, password: pw }) : await sb.auth.signInWithPassword({ email: em, password: pw });
+        const r = up ? await sb.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.origin + location.pathname } }) : await sb.auth.signInWithPassword({ email: em, password: pw });
         if (r.error) { $("su-msg").textContent = r.error.message; return }
-        if (!r.data.session) { $("su-msg").textContent = "Account made. Check your email for the confirmation link, then come back and sign in."; return }
+        if (!r.data.session) { $("su-msg").textContent = "Account made. Open the confirmation link we just emailed you, then come back here and tap Sign in."; return }
         await linked(r.data.session);
       };
       $("su-in").onclick = () => go(false); $("su-up").onclick = () => go(true);
@@ -377,18 +385,32 @@ create policy "own photos remove" on storage.objects for delete to authenticated
   }
   function hideSetup() { $("setup").hidden = true; document.body.classList.remove("locked") }
 
-  async function linked(session) {
-    uid = session.user.id; email = session.user.email || "";
-    const wasLocal = cfg.mode !== "cloud" || cfg.uid !== uid;
-    const hasLocal = [...M.values()].some(m => m.size);
-    cfg.mode = "cloud"; cfg.uid = uid; saveCfg(cfg);
-    if (wasLocal && hasLocal) await queueEverything();
-    hideSetup(); start(); await syncNow();
+  // Wipe everything cached on this device (used when a different person signs in, or on sign-out).
+  async function wipeLocal() {
+    await idb.clear("docs"); await idb.clear("blobs"); await idb.clear("outbox");
+    M.clear(); for (const u of urls.values()) URL.revokeObjectURL(u); urls.clear(); notifyAll();
+  }
+  let linking = null;
+  function linked(session) {
+    if (linking) return linking;
+    linking = (async () => {
+      const newUid = session.user.id;
+      // Someone else used this device before: never mix their closet into this account.
+      if (cfg.uid && cfg.uid !== newUid) { await wipeLocal(); delete cfg.geminiKey; delete cfg.geminiModel }
+      const fromLocalOnly = cfg.mode === "local";
+      const hasLocal = [...M.values()].some(m => m.size);
+      uid = newUid; email = session.user.email || "";
+      cfg.mode = "cloud"; cfg.uid = uid; saveCfg(cfg);
+      if (fromLocalOnly && hasLocal) await queueEverything();
+      hideSetup(); start(); await syncNow(); resolveFirst();
+    })().finally(() => { linking = null });
+    return linking;
   }
 
   function start() {
     if (started) { renderSettings(); paintPill(); return }
     started = true; resolveReady(); renderSettings(); paintPill();
+    if (cfg.mode !== "cloud") resolveFirst();
   }
 
   async function boot() {
@@ -402,7 +424,7 @@ create policy "own photos remove" on storage.objects for delete to authenticated
     try {
       sb = makeClient(cfg.url, cfg.key);
       const { data } = await sb.auth.getSession();
-      if (data.session) { uid = data.session.user.id; email = data.session.user.email || ""; start(); syncNow() }
+      if (data.session) { uid = data.session.user.id; email = data.session.user.email || ""; start(); syncNow().finally(resolveFirst); setTimeout(resolveFirst, 10000) }
       else if (M.size && cfg.uid) { start(); showSetup("auth", "Signed out. Sign in again to keep syncing.") }
       else showSetup("auth");
       sb.auth.onAuthStateChange((ev, s) => { if (ev === "SIGNED_OUT") { uid = null; paintPill(); renderSettings() } else if (s && !uid && ev !== "INITIAL_SESSION") linked(s) });
@@ -437,7 +459,18 @@ create policy "own photos remove" on storage.objects for delete to authenticated
         <p class="muted"><b>iPhone:</b> open this page in Safari, tap Share, then Add to Home Screen. <b>Android:</b> in Chrome, open the ⋮ menu and tap Install app. It then opens full screen like any other app and works offline.</p></div>`;
     const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn };
     on("set-sync", () => syncNow());
-    on("set-out", async () => { await sb?.auth.signOut(); uid = null; renderSettings(); paintPill() });
+    on("set-out", async () => {
+      const b = $("set-out"); b.disabled = true;
+      if (navigator.onLine) await flush();
+      const left = (await idb.all("outbox")).length;
+      if (left && !b.dataset.arm) {
+        b.dataset.arm = "1"; b.disabled = false; b.textContent = "Sign out anyway";
+        $("set-sync-msg").textContent = `${left} change${left > 1 ? "s haven't" : " hasn't"} synced yet. Signing out now deletes ${left > 1 ? "them" : "it"} from this device.`;
+        return;
+      }
+      try { await sb?.auth.signOut() } catch {}
+      await wipeLocal(); delete cfg.uid; delete cfg.geminiKey; delete cfg.geminiModel; saveCfg(cfg); location.reload();
+    });
     on("set-in", () => showSetup("auth"));
     on("set-cloud", () => { if (!window.supabase) return; showSetup("keys") });
     on("set-ai-save", () => {
@@ -466,7 +499,7 @@ create policy "own photos remove" on storage.objects for delete to authenticated
 
   /* ---------- public surface ---------- */
   window.claude = { use: async name => { await ready; return name === "db" ? db : name === "assets" ? assets : name === "sample" ? makeSample() : null } };
-  window.RP = { srcFor, getBlob, syncNow, renderSettings, get aiOn() { return !!cfg.geminiKey } };
+  window.RP = { srcFor, getBlob, syncNow, renderSettings, firstSync, get aiOn() { return !!cfg.geminiKey } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});

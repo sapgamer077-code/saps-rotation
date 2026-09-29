@@ -1,7 +1,7 @@
 {
-  "name": "Sap's Rotation",
+  "name": "Rotation",
   "short_name": "Rotation",
-  "description": "Sap's closet: daily fits, next buys and brands.",
+  "description": "Your closet: daily fits, next buys and brands.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Sap's Rotation</title>
-<meta name="description" content="Sap's closet: daily fits, next buys and brands.">
+<title>Rotation</title>
+<meta name="description" content="Your closet: daily fits, next buys and a brand atlas built around your style.">
 <meta name="theme-color" content="#EDEFF3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101218" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
@@ -225,7 +225,8 @@ body.locked{overflow:hidden}
 .setup{position:fixed;inset:0;z-index:40;background:var(--bg);overflow-y:auto;padding:calc(28px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px))}
 .setup-body{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .setup-body h2{font-size:2rem;font-stretch:62%;line-height:1}
-.setup-body::before{content:"Sap's Rotation";font:800 1rem/1 var(--display);font-stretch:62%;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.setup-body::before{content:"Rotation";font:800 1rem/1 var(--display);font-stretch:62%;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.setup-body .field{flex:none}
 .su-actions{display:flex;flex-wrap:wrap;gap:10px}
 .su-steps{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:8px}
 .su-code{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -238,6 +239,22 @@ body.locked{overflow:hidden}
 .t-img{width:72px;aspect-ratio:3/4;object-fit:cover;border-radius:8px;flex:0 0 auto;background:var(--tag)}
 .t-groups{display:flex;flex-direction:column;gap:12px}
 .t-group{display:flex;flex-direction:column;gap:6px}
+
+/* ---------- per-user additions ---------- */
+.b-ai{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.b-item .why{grid-column:1/-1;font-size:.85rem;color:var(--ink);border-left:2px solid var(--accent);padding-left:8px;margin-top:4px}
+.b-mark button[data-m="hide"],.b-mark button[data-rmb]{color:var(--muted)}
+.t-more summary{cursor:pointer;margin-bottom:6px}
+.ob-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ob-card{position:relative;display:flex;flex-direction:column;gap:4px;background:var(--surface);border:1.5px solid var(--line);border-top:4px solid var(--sc);border-radius:10px;padding:10px 12px;cursor:pointer;min-width:0}
+.ob-card input{position:absolute;opacity:0;pointer-events:none}
+.ob-card:has(input:checked){border-color:var(--sc);box-shadow:inset 0 0 0 1px var(--sc)}
+.ob-card:has(input:checked) .ob-name::after{content:" ✓";color:var(--sc)}
+.ob-card:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.ob-name{font:700 1rem var(--display);font-stretch:88%}
+.ob-blurb{font-size:.82rem;color:var(--muted);line-height:1.35}
+.ob-radio label.chip{font-size:.85rem;padding:8px 12px}
+label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -245,15 +262,15 @@ body.locked{overflow:hidden}
 <div class="wrap">
   <header class="mast">
     <div>
-      <p class="label">Closet · fits · next buys · brands</p>
-      <h1>Sap's Rotation</h1>
+      <p class="label" id="mast-eyebrow">Closet · fits · next buys · brands</p>
+      <h1>Rotation</h1>
       <span class="sync-pill" id="sync-pill" data-state="local">Starting…</span>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-make" data-tab="make">Make a fit</button>
       <button class="tab" role="tab" id="tab-closet" data-tab="closet">Closet<span class="n" id="n-closet">0</span></button>
       <button class="tab" role="tab" id="tab-buys" data-tab="buys">Next buys<span class="n" id="n-buys">0</span></button>
-      <button class="tab" role="tab" id="tab-brands" data-tab="brands">Brands<span class="n" id="n-brands">247</span></button>
+      <button class="tab" role="tab" id="tab-brands" data-tab="brands">Brands<span class="n" id="n-brands"></span></button>
       <button class="tab" role="tab" id="tab-inspo" data-tab="inspo">Inspo<span class="n" id="n-inspo">0</span></button>
       <button class="tab" role="tab" id="tab-you" data-tab="you">You &amp; settings</button>
       <button class="tab" role="tab" id="tab-saved" data-tab="saved">Saved<span class="n" id="n-saved">0</span></button>
@@ -270,7 +287,7 @@ body.locked{overflow:hidden}
         <div class="field"><label class="label" for="m-temp">Temp (°F)</label><input type="number" id="m-temp" value="62" inputmode="numeric"></div>
         <div class="field"><label class="label" for="m-wx">Conditions</label>
           <select id="m-wx"><option>Clear</option><option>Cloudy</option><option>Rain</option><option>Snow</option><option>Windy</option></select></div>
-        <div class="field"><label class="label" for="m-vibe">Vibe</label>
+        <div class="field"><label class="label" for="m-vibe">Style</label>
           <select id="m-vibe"><option value="any">Surprise me</option><option value="grisch">Grisch</option><option value="streetwear">Streetwear</option><option value="cozy">Cozy</option></select></div>
       </div>
       <div class="field"><label class="label" for="m-plan">What's the day? (optional)</label><input type="text" id="m-plan" placeholder="Class, then shooting a show at night"></div>
@@ -297,8 +314,9 @@ body.locked{overflow:hidden}
   <!-- BRANDS -->
   <section id="view-brands" hidden>
     <div class="panel">
-      <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Brands</h2><span class="label">Grisch · Streetwear · Cozy</span></div>
-      <p class="muted">Every brand worth knowing for your three styles. Tap Own or Want on a brand and Next buys takes it into account. Brands your list recommends are outlined.</p>
+      <div class="row" style="justify-content:space-between;align-items:center"><h2>Your brands</h2><button class="btn ghost small" id="b-add">Add a brand</button></div>
+      <p class="muted">Built from your styles, budget and the clothes you shop for. Tap Own or Want and Next buys takes it into account; Hide anything that isn't you. Brands your list recommends are outlined.</p>
+      <div class="b-ai"><button class="btn small" id="b-ai-go" hidden>Personalize with Gemini</button><p class="muted" id="b-ai-hint" style="font-size:.85rem">Add a free Gemini key in You &amp; settings and Gemini can pick more brands just for you, beyond this list.</p><p class="status" id="b-ai-status" aria-live="polite"></p></div>
       <div class="mix" id="b-mix"></div>
       <div class="b-controls" role="search">
         <div class="b-styles" id="b-styles"></div>
@@ -309,18 +327,8 @@ body.locked{overflow:hidden}
       </div>
     </div>
     <div id="b-list"></div>
-    <div class="b-sec" style="--sc:var(--ink)"><div class="b-head"><h2>Starter kits &amp; fit</h2><p>Buy these first. Five pieces per style covers most outfits.</p></div>
-      <div class="b-kits" id="b-kits"><div class="box" style="border-top:3px solid var(--grisch)"><h4>Grisch starter kit</h4><ol>
-      <li>Navy down vest (Uniqlo or Patagonia)</li><li>Grey or navy crewneck or quarter-zip (Ralph Lauren or Massimo Dutti)</li><li>Light-wash straight jeans (Levi's 501 or Nudie)</li><li>White leather sneakers (Koio or Axel Arigato)</li><li>Tissot PRX or Seiko Presage</li></ol>
-      <p style="margin:8px 0 0">Fit: knits fitted at the shoulder, jeans straight with a small stack at the shoe.</p></div>
-    <div class="box" style="border-top:3px solid var(--street)"><h4>Streetwear starter kit</h4><ol>
-      <li>Two heavyweight tees (Camber or LA Apparel)</li><li>Reverse Weave hoodie (Champion)</li><li>Double-knee or wide work pants (Carhartt or Dickies)</li><li>One statement sneaker (Samba, 550 or Gel-1130)</li><li>Fitted cap or G-Shock</li></ol>
-      <p style="margin:8px 0 0">Fit: size up one in tees for a boxy look; wide pants balance chunkier shoes.</p></div>
-    <div class="box" style="border-top:3px solid var(--cozy)"><h4>Cozy starter kit</h4><ol>
-      <li>Fleece (Patagonia Synchilla or Better Sweater)</li><li>Full-zip hoodie (American Giant)</li><li>Tapered joggers (Vuori or Uniqlo)</li><li>Birkenstock Boston or Wicked Good slippers</li><li>Darn Tough wool socks</li></ol>
-      <p style="margin:8px 0 0">Fit: tapered bottoms and a slightly relaxed top look put-together, not sloppy.</p></div>
-    <div class="box"><h4>How to tell quality</h4><ul>
-      <li>Tees: 6 oz or heavier cotton, tight collar ribbing</li><li>Knits: 100% wool, merino or cashmere, not acrylic blends</li><li>Down: 600+ fill power</li><li>Shoes: full-grain leather; boots with a Goodyear welt can be resoled</li><li>Check for repair programs and lifetime warranties</li></ul></div></div></div>
+    <div class="b-sec" style="--sc:var(--ink)"><div class="b-head"><h2>Starter kits &amp; fit</h2><p>Buy these first. A handful of pieces per style covers most outfits.</p></div>
+      <div class="b-kits" id="b-kits"></div></div>
     <p class="muted" style="font-size:.85rem;margin-top:16px">Price tiers are approximate and shift with sales and seasons. For luxury pieces, buy only through authenticated resale.</p>
   </section>
 
@@ -353,6 +361,7 @@ body.locked{overflow:hidden}
 
   <!-- YOU -->
   <section id="view-you" hidden>
+    <div class="panel" id="stylepanel" style="margin-bottom:16px"></div>
     <div class="you-grid">
       <div class="panel">
         <h2>Your build</h2>
@@ -388,7 +397,7 @@ body.locked{overflow:hidden}
         <li>Wear plain black or neutral pieces for everything you're not photographing.</li>
       </ol>
     </div>
-    <div class="panel" id="settings" style="margin-top:16px"></div>
+        <div class="panel" id="settings" style="margin-top:16px"></div>
   </section>
 
   <!-- SAVED -->
@@ -451,6 +460,21 @@ body.locked{overflow:hidden}
     <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="t-save">Save tags</button></div>
   </div>
 </div>
+<div class="setup" id="onboard" hidden><div class="setup-body" id="ob-body"></div></div>
+<div class="sheet" id="brandsheet" hidden>
+  <form class="panel" id="bf" autocomplete="off">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2>Add a brand</h2><button type="button" class="btn ghost small" id="bf-close">Close</button></div>
+    <div class="field"><label class="label" for="bf-name">Brand</label><input type="text" id="bf-name" placeholder="A brand you love"></div>
+    <div class="row">
+      <div class="field"><label class="label" for="bf-style">Style</label><select id="bf-style"></select></div>
+      <div class="field"><label class="label" for="bf-cat">For</label><select id="bf-cat"><option>Garments</option><option>Shoes</option><option>Boots</option><option>Accessories</option></select></div>
+      <div class="field"><label class="label" for="bf-tier">Price</label><select id="bf-tier"><option value="1">$</option><option value="2" selected>$$</option><option value="3">$$$</option></select></div>
+    </div>
+    <div class="field"><label class="label" for="bf-note">Note (optional)</label><input type="text" id="bf-note" placeholder="Great straight-leg jeans"></div>
+    <p class="status" id="bf-msg" aria-live="polite"></p>
+    <div class="row" style="justify-content:flex-end"><button type="submit" class="btn">Add to my atlas</button></div>
+  </form>
+</div>
 <div class="setup" id="setup" hidden>
   <div class="setup-body" id="setup-body"></div>
 </div>
@@ -458,6 +482,7 @@ body.locked{overflow:hidden}
 <script src="config.js"></script>
 <script src="supabase.js"></script>
 <script src="platform.js"></script>
+<script src="catalog.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
