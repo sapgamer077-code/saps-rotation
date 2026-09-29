@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sap's Rotation</title>
+<meta name="description" content="Sap's closet: daily fits, next buys and brands.">
+<meta name="theme-color" content="#EDEFF3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101218" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Rotation">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+/* Layout: one column app, tab bar under a condensed masthead; closet pieces drawn as hang tags. */
+:root{
+  --bg:#EDEFF3; --surface:#FFFFFF; --ink:#171A22; --muted:#5F6576; --line:#D5D9E2;
+  --accent:#2E3F92; --accent-ink:#FFFFFF; --tag:#F4F5F8; --good:#2F7A4A; --bad:#A8392F;
+  --grisch:#2C4570; --street:#B8401F; --cozy:#4F6F4E;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --body:"Karla",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101218; --surface:#191C24; --ink:#ECEEF4; --muted:#9A9FAE; --line:#2B303C;
+  --accent:#93A2F2; --accent-ink:#101218; --tag:#20242E; --good:#6CC08B; --bad:#E58176; --grisch:#8FA9DB; --street:#F07A5C; --cozy:#9DBE9B; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101218; --surface:#191C24; --ink:#ECEEF4; --muted:#9A9FAE; --line:#2B303C;
+  --accent:#93A2F2; --accent-ink:#101218; --tag:#20242E; --good:#6CC08B; --bad:#E58176; --grisch:#8FA9DB; --street:#F07A5C; --cozy:#9DBE9B; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);padding-inline:16px;padding-block:20px 64px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:clamp(2.4rem,9vw,4rem);font-weight:800;font-stretch:62%;text-transform:uppercase;letter-spacing:.01em;line-height:.95}
+h2{font-size:1.5rem;font-weight:750;font-stretch:75%;text-transform:uppercase;letter-spacing:.02em}
+h3{font-size:1.1rem;font-weight:700;font-stretch:88%}
+.label{font:500 .72rem/1.3 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.muted{color:var(--muted)}
+p{margin:0}
+.mast{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{font:600 .95rem var(--body);background:none;border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab .n{font:500 .75rem var(--mono);opacity:.7;margin-left:4px}
+button{font:inherit}
+.btn{font:700 .95rem var(--body);background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:10px 16px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 10px;font-size:.85rem}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.panel > .field,form.panel > .field{flex:none}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 140px}
+input[type=text],input[type=number],select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+textarea{min-height:64px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 .78rem var(--mono);border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--tag);color:var(--ink)}
+label.chip{cursor:pointer}
+label.chip:has(input:checked){background:var(--ink);color:var(--bg);border-color:var(--ink)}
+label.chip input{position:absolute;opacity:0;pointer-events:none}
+.filters{display:flex;flex-wrap:wrap;gap:6px}
+.filters button{font:500 .78rem var(--mono);text-transform:uppercase;letter-spacing:.06em;background:none;border:1px solid var(--line);color:var(--muted);padding:5px 10px;border-radius:6px;cursor:pointer}
+.filters button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
+/* hang tags */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.tagcard{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:10px 10px 10px 10px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;text-align:left;padding:0;color:var(--ink)}
+.tagcard .hole{position:absolute;top:8px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--bg);border:1px solid var(--line);z-index:1}
+.tagcard .ph{aspect-ratio:4/5;background:var(--tag);display:grid;place-items:center;max-width:100%}
+.tagcard .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.tagcard .ph .none{font:500 .75rem var(--mono);color:var(--muted);padding:12px;text-align:center}
+.tagcard .meta{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--line)}
+.tagcard .name{font-weight:700;line-height:1.25}
+.tagcard.wash{opacity:.55}
+.flag{position:absolute;top:8px;right:8px;font:500 .68rem var(--mono);text-transform:uppercase;background:var(--ink);color:var(--bg);padding:2px 6px;border-radius:4px;z-index:1}
+.bodydot{position:absolute;top:8px;left:8px;font:500 .68rem var(--mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:2px 6px;border-radius:4px;z-index:1}
+.empty{border:1.5px dashed var(--line);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:10px;max-width:640px}
+.empty ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:4px}
+/* sheet */
+.sheet{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 45%,transparent);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;z-index:10;padding:24px 12px calc(24px + env(safe-area-inset-bottom,0px))}
+.sheet .panel{width:min(640px,100%)}
+.photos{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.drop{border:1.5px dashed var(--line);border-radius:10px;aspect-ratio:4/5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:10px;cursor:pointer;position:relative;overflow:hidden;background:var(--tag);max-width:100%}
+.drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+/* fits */
+.fits{display:flex;flex-direction:column;gap:14px}
+.fit{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.strip figure{margin:0;flex:0 0 96px;display:flex;flex-direction:column;gap:4px}
+.strip .ph{width:96px;aspect-ratio:4/5;border-radius:8px;background:var(--tag);overflow:hidden;display:grid;place-items:center}
+.strip img{width:100%;height:100%;object-fit:cover}
+.strip figcaption{font-size:.78rem;line-height:1.2}
+.votes{display:flex;gap:8px;flex-wrap:wrap}
+.voted-up{border-color:var(--good)!important;color:var(--good)!important}
+.voted-down{border-color:var(--bad)!important;color:var(--bad)!important}
+.inspo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.inspo-card{display:flex;flex-direction:column;gap:6px}
+.inspo-card .ph{aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:var(--tag);max-width:100%}
+.inspo-card img{width:100%;height:100%;object-fit:cover;display:block}
+.profile{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.profile > div{display:flex;flex-direction:column;gap:6px;min-width:0}
+.profile ul{margin:0;padding-left:1.1rem}
+.status{font:500 .85rem var(--mono);color:var(--muted);min-height:1.2em}
+.recreate{display:flex;gap:12px;align-items:center;background:var(--tag);border-radius:10px;padding:10px}
+.recreate img{width:56px;height:70px;object-fit:cover;border-radius:6px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
+.fitgrid{display:flex;flex-direction:column;gap:14px}
+.fit-detail{display:flex;flex-direction:column;gap:10px;min-width:0}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;width:100%}
+.b-cell{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.b-cell .ph{aspect-ratio:4/5;background:var(--tag);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:grid;place-items:center}
+.b-cell img{width:100%;height:100%;object-fit:cover;display:block}
+.b-cell figcaption{font:500 .7rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.b-body{grid-column:1/-1;display:grid;gap:8px}
+.b-body .ph{aspect-ratio:1/2}
+.pieces{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:.92rem}
+.pieces li,.mq-legend li{display:flex;align-items:center;gap:8px}
+.sw{width:12px;height:12px;border-radius:3px;border:1px solid var(--line);flex:0 0 auto}
+.gap{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.gap-rank{font:800 1.6rem/1 var(--display);font-stretch:62%;color:var(--accent)}
+.gap-main{display:flex;flex-direction:column;gap:8px;min-width:0}
+.gap-stats{display:flex;flex-wrap:wrap;gap:6px 16px;font:500 .8rem var(--mono);color:var(--muted)}
+.gap-stats b{color:var(--ink);font-weight:600}
+.brands{display:flex;flex-wrap:wrap;gap:6px}
+.brand{display:inline-flex;gap:6px;align-items:center;font-weight:600;font-size:.9rem;color:var(--ink);text-decoration:none;border:1px solid var(--line);background:var(--tag);border-radius:999px;padding:5px 12px}
+.brand span{font:500 .75rem var(--mono);color:var(--muted)}
+.brand:hover{border-color:var(--accent)}
+.atlas-link{color:var(--accent);font-weight:600;font-size:.92rem;text-decoration:none;align-self:flex-start}
+.atlas-link:hover{text-decoration:underline}
+.gaps{display:flex;flex-direction:column;gap:12px}
+.mq-panel{width:min(760px,100%)!important}
+.mq-stage{position:relative;height:min(64vh,560px);background:radial-gradient(ellipse at 50% 38%,var(--surface),var(--tag) 75%);border-radius:10px;overflow:hidden;cursor:grab}
+.mq-stage .status{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:16px}
+.mq-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:.92rem}
+.you-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.you-grid > *{min-width:0}
+#you-stage{height:min(58vh,480px)}
+.mq-stage{width:100%;max-width:100%}
+.mq-stage canvas{width:100%!important;height:100%!important;display:block}
+.row.tight{gap:8px}
+.row.tight .field{flex:1 1 84px}
+@media (max-width:720px){
+  .you-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+  .you-grid .panel,#view-you > .panel{padding:14px;gap:12px}
+  .you-mq{order:-1}
+  #you-stage{height:clamp(240px,42svh,360px)}
+  .mq-stage{height:clamp(280px,55svh,460px)}
+  #view-you h2{font-size:1.25rem}
+}
+.steps{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px}
+@media (prefers-reduced-motion:no-preference){.tagcard{transition:transform .15s}.tagcard:hover{transform:translateY(-2px)}}
+/* app shell: tab bar docks to the bottom on phones */
+@media (max-width:720px){
+  body{padding-block:16px calc(96px + env(safe-area-inset-bottom,0px))}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--surface);border-top:1px solid var(--line);
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
+.brand{cursor:pointer;font-family:var(--body)}
+button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:var(--body)}
+.gap-size{font:500 .8rem var(--mono);color:var(--ink);background:var(--tag);border:1px solid var(--line);border-radius:6px;padding:3px 8px;align-self:flex-start}
+.fresh{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;border:1.5px dashed var(--accent);border-radius:10px;padding:10px 12px;font-size:.92rem}
+.fresh b{font-family:var(--mono);font-weight:500}
+/* brands */
+.b-controls{display:flex;flex-direction:column;gap:10px}
+.b-styles{display:flex;flex-wrap:wrap;gap:6px}
+.b-style{font:700 .95rem var(--display);font-stretch:88%;padding:7px 14px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.b-style[aria-pressed="true"]{background:var(--sc);border-color:var(--sc);color:var(--bg)}
+.b-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.b-row > .label{min-width:84px}
+.b-chip{font:500 .8rem var(--body);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--tag);color:var(--ink);cursor:pointer}
+.b-chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.b-search{flex:1 1 180px;max-width:320px}
+.b-count{font:500 .78rem var(--mono);color:var(--muted);margin-left:auto}
+.b-sec{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+.b-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;border-bottom:3px solid var(--sc);padding-bottom:6px}
+.b-head h2{color:var(--sc)}
+.b-head p{color:var(--muted);font-size:.92rem;max-width:70ch}
+.b-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px}
+.b-item{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-content:start}
+.b-item.hit{border-color:var(--sc);box-shadow:inset 0 0 0 1px var(--sc)}
+.b-item .nm{font:700 1rem var(--display);font-stretch:92%}
+.b-item .tr{font:600 .85rem var(--mono);color:var(--sc);text-align:right}
+.b-item .nt{grid-column:1/-1;font-size:.88rem;color:var(--muted)}
+.b-item .ft{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.b-tag{font:500 .68rem var(--mono);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);padding:1px 6px;border-radius:3px}
+.b-pill{font:500 .68rem var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:var(--sc);color:var(--bg)}
+.b-pill.want{background:transparent;color:var(--sc);border:1.5px dashed var(--sc)}
+.b-mark{margin-left:auto;display:flex;gap:4px}
+.b-mark button{font:500 .72rem var(--mono);background:none;border:1px solid var(--line);color:var(--muted);border-radius:4px;padding:2px 7px;cursor:pointer}
+.b-mark button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink);background:var(--tag)}
+.b-h3{font:600 .72rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.b-kits{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.b-kits .box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.b-kits h4{font:700 1rem var(--display);margin:0 0 6px}
+.b-kits ol,.b-kits ul{margin:0;padding-left:18px;font-size:.92rem}
+.b-kits p{font-size:.85rem!important;color:var(--muted)!important}
+.mix{display:flex;flex-wrap:wrap;gap:6px 14px;font:500 .8rem var(--mono);color:var(--muted)}
+.mix b{color:var(--ink);font-weight:600}
+
+/* ---------- standalone app additions ---------- */
+input[type=password]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:8px}
+.sync-pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.sync-pill[data-state="ok"]::before{background:var(--good)}
+.sync-pill[data-state="error"]::before{background:var(--bad)}
+.sync-pill[data-state="syncing"]::before{background:var(--accent)}
+body.locked{overflow:hidden}
+.setup{position:fixed;inset:0;z-index:40;background:var(--bg);overflow-y:auto;padding:calc(28px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px))}
+.setup-body{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.setup-body h2{font-size:2rem;font-stretch:62%;line-height:1}
+.setup-body::before{content:"Sap's Rotation";font:800 1rem/1 var(--display);font-stretch:62%;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.su-actions{display:flex;flex-wrap:wrap;gap:10px}
+.su-steps{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:8px}
+.su-code{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.su-code pre{margin:0;max-height:180px;overflow:auto;font:400 .72rem/1.45 var(--mono);white-space:pre}
+.su-code .btn{align-self:flex-start}
+.set-sec{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px dashed var(--line)}
+.set-sec .row{gap:8px}
+.pin-tags{display:flex;flex-wrap:wrap;gap:4px}
+.pin-tags .chip{font-size:.68rem;padding:2px 8px}
+.t-img{width:72px;aspect-ratio:3/4;object-fit:cover;border-radius:8px;flex:0 0 auto;background:var(--tag)}
+.t-groups{display:flex;flex-direction:column;gap:12px}
+.t-group{display:flex;flex-direction:column;gap:6px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <p class="label">Closet · fits · next buys · brands</p>
+      <h1>Sap's Rotation</h1>
+      <span class="sync-pill" id="sync-pill" data-state="local">Starting…</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-make" data-tab="make">Make a fit</button>
+      <button class="tab" role="tab" id="tab-closet" data-tab="closet">Closet<span class="n" id="n-closet">0</span></button>
+      <button class="tab" role="tab" id="tab-buys" data-tab="buys">Next buys<span class="n" id="n-buys">0</span></button>
+      <button class="tab" role="tab" id="tab-brands" data-tab="brands">Brands<span class="n" id="n-brands">247</span></button>
+      <button class="tab" role="tab" id="tab-inspo" data-tab="inspo">Inspo<span class="n" id="n-inspo">0</span></button>
+      <button class="tab" role="tab" id="tab-you" data-tab="you">You &amp; settings</button>
+      <button class="tab" role="tab" id="tab-saved" data-tab="saved">Saved<span class="n" id="n-saved">0</span></button>
+    </nav>
+  </header>
+
+  <p class="status" id="conn" aria-live="polite">Connecting to your closet…</p>
+
+  <!-- MAKE -->
+  <section id="view-make" hidden>
+    <div class="panel">
+      <h2>Today</h2>
+      <div class="row">
+        <div class="field"><label class="label" for="m-temp">Temp (°F)</label><input type="number" id="m-temp" value="62" inputmode="numeric"></div>
+        <div class="field"><label class="label" for="m-wx">Conditions</label>
+          <select id="m-wx"><option>Clear</option><option>Cloudy</option><option>Rain</option><option>Snow</option><option>Windy</option></select></div>
+        <div class="field"><label class="label" for="m-vibe">Vibe</label>
+          <select id="m-vibe"><option value="any">Surprise me</option><option value="grisch">Grisch</option><option value="streetwear">Streetwear</option><option value="cozy">Cozy</option></select></div>
+      </div>
+      <div class="field"><label class="label" for="m-plan">What's the day? (optional)</label><input type="text" id="m-plan" placeholder="Class, then shooting a show at night"></div>
+      <div class="recreate" id="m-recreate" hidden>
+        <img id="m-recreate-img" alt="Inspo to recreate">
+        <div style="flex:1;min-width:0"><p class="label">Recreating this inspo</p><p class="muted" style="font-size:.9rem">Closest match from your closet, plus what's missing.</p></div>
+        <button class="btn ghost small" id="m-recreate-x">Clear</button>
+      </div>
+      <div class="row"><button class="btn" id="m-go">Make 3 fits</button><button class="btn ghost" id="m-stop" hidden>Stop</button></div>
+      <p class="status" id="m-status" aria-live="polite"></p>
+    </div>
+    <div class="fits" id="m-out"></div>
+  </section>
+
+  <!-- CLOSET -->
+  <section id="view-closet" hidden>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="filters" id="c-filters"></div>
+      <button class="btn" id="c-add">Add a piece</button>
+    </div>
+    <div id="c-body" style="margin-top:16px"></div>
+  </section>
+
+  <!-- BRANDS -->
+  <section id="view-brands" hidden>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Brands</h2><span class="label">Grisch · Streetwear · Cozy</span></div>
+      <p class="muted">Every brand worth knowing for your three styles. Tap Own or Want on a brand and Next buys takes it into account. Brands your list recommends are outlined.</p>
+      <div class="mix" id="b-mix"></div>
+      <div class="b-controls" role="search">
+        <div class="b-styles" id="b-styles"></div>
+        <div class="b-row"><span class="label">Shopping for</span><div class="b-row" id="b-cats"></div></div>
+        <div class="b-row"><span class="label">Budget</span><div class="b-row" id="b-tiers"></div></div>
+        <div class="b-row"><span class="label">Brand type</span><div class="b-row" id="b-tags"></div></div>
+        <div class="b-row"><input type="text" id="b-q" class="b-search" placeholder="Search a brand or item" aria-label="Search brands"><span class="b-count" id="b-count"></span></div>
+      </div>
+    </div>
+    <div id="b-list"></div>
+    <div class="b-sec" style="--sc:var(--ink)"><div class="b-head"><h2>Starter kits &amp; fit</h2><p>Buy these first. Five pieces per style covers most outfits.</p></div>
+      <div class="b-kits" id="b-kits"><div class="box" style="border-top:3px solid var(--grisch)"><h4>Grisch starter kit</h4><ol>
+      <li>Navy down vest (Uniqlo or Patagonia)</li><li>Grey or navy crewneck or quarter-zip (Ralph Lauren or Massimo Dutti)</li><li>Light-wash straight jeans (Levi's 501 or Nudie)</li><li>White leather sneakers (Koio or Axel Arigato)</li><li>Tissot PRX or Seiko Presage</li></ol>
+      <p style="margin:8px 0 0">Fit: knits fitted at the shoulder, jeans straight with a small stack at the shoe.</p></div>
+    <div class="box" style="border-top:3px solid var(--street)"><h4>Streetwear starter kit</h4><ol>
+      <li>Two heavyweight tees (Camber or LA Apparel)</li><li>Reverse Weave hoodie (Champion)</li><li>Double-knee or wide work pants (Carhartt or Dickies)</li><li>One statement sneaker (Samba, 550 or Gel-1130)</li><li>Fitted cap or G-Shock</li></ol>
+      <p style="margin:8px 0 0">Fit: size up one in tees for a boxy look; wide pants balance chunkier shoes.</p></div>
+    <div class="box" style="border-top:3px solid var(--cozy)"><h4>Cozy starter kit</h4><ol>
+      <li>Fleece (Patagonia Synchilla or Better Sweater)</li><li>Full-zip hoodie (American Giant)</li><li>Tapered joggers (Vuori or Uniqlo)</li><li>Birkenstock Boston or Wicked Good slippers</li><li>Darn Tough wool socks</li></ol>
+      <p style="margin:8px 0 0">Fit: tapered bottoms and a slightly relaxed top look put-together, not sloppy.</p></div>
+    <div class="box"><h4>How to tell quality</h4><ul>
+      <li>Tees: 6 oz or heavier cotton, tight collar ribbing</li><li>Knits: 100% wool, merino or cashmere, not acrylic blends</li><li>Down: 600+ fill power</li><li>Shoes: full-grain leather; boots with a Goodyear welt can be resoled</li><li>Check for repair programs and lifetime warranties</li></ul></div></div></div>
+    <p class="muted" style="font-size:.85rem;margin-top:16px">Price tiers are approximate and shift with sales and seasons. For luxury pieces, buy only through authenticated resale.</p>
+  </section>
+
+  <!-- INSPO -->
+  <section id="view-inspo" hidden>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2>Style profile</h2>
+        <div class="row">
+          <label class="btn ghost" style="position:relative">Add inspo images<input type="file" id="i-file" accept="image/*" multiple style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+          <button class="btn" id="i-build">Read my inspo</button>
+        </div>
+      </div>
+      <p class="status" id="i-status" aria-live="polite"></p>
+      <div id="i-profile"></div>
+    </div>
+    <div class="inspo-grid" id="i-grid" style="margin-top:16px"></div>
+  </section>
+
+  <!-- NEXT BUYS -->
+  <section id="view-buys" hidden>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center"><h2>Next buys</h2><button class="btn" id="g-go">Find my next buys</button></div>
+      <p class="muted" id="g-mode"></p>
+      <div class="fresh" id="g-fresh" hidden><span id="g-fresh-t"></span><button class="btn small" id="g-fresh-go">Update now</button></div>
+      <p class="status" id="g-status" aria-live="polite"></p>
+    </div>
+    <div class="gaps" id="g-list" style="margin-top:16px"></div>
+  </section>
+
+  <!-- YOU -->
+  <section id="view-you" hidden>
+    <div class="you-grid">
+      <div class="panel">
+        <h2>Your build</h2>
+        <p class="muted">The fit maker uses this to judge how much volume and layering suits your frame. It stays private in this app.</p>
+        <div class="row tight">
+          <div class="field"><label class="label" for="b-ft">Height (ft)</label><input type="number" id="b-ft" min="4" max="7" inputmode="numeric"></div>
+          <div class="field"><label class="label" for="b-in">(in)</label><input type="number" id="b-in" min="0" max="11" inputmode="numeric"></div>
+          <div class="field"><label class="label" for="b-lb">Weight (lb)</label><input type="number" id="b-lb" min="80" max="400" inputmode="numeric"></div>
+        </div>
+        <div class="row tight">
+          <div class="field"><label class="label" for="b-build">Build</label><select id="b-build"><option>slim</option><option>athletic</option><option>medium</option><option>broad</option><option>heavier</option></select></div>
+          <div class="field"><label class="label" for="b-sh">Shoulders</label><select id="b-sh"><option>narrow</option><option>average</option><option>broad</option></select></div>
+          <div class="field"><label class="label" for="b-prop">Proportions</label><select id="b-prop"><option>longer legs</option><option>balanced</option><option>longer torso</option></select></div>
+        </div>
+        <div class="field"><label class="label" for="b-show">Want to show off (optional)</label><input type="text" id="b-show" placeholder="Shoulders, arms"></div>
+        <div class="field"><label class="label" for="b-hide">Rather play down (optional)</label><input type="text" id="b-hide" placeholder="Midsection"></div>
+        <div class="row" style="align-items:center"><button class="btn" id="b-save">Save build</button><span class="status" id="b-state"></span></div>
+      </div>
+      <div class="panel you-mq">
+        <h2>Your mannequin</h2>
+        <div class="mq-stage" id="you-stage"><p class="status" id="you-status">Loading 3D…</p></div>
+        <p class="muted" style="font-size:.9rem">Updates as you change your stats. Drag sideways to turn it.</p>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>On-body photo setup</h2>
+      <p class="muted">Take every on-body shot the same way so pieces line up side by side on your outfit boards.</p>
+      <ol class="steps">
+        <li>Pick one spot with a plain wall and mark where you stand with tape.</li>
+        <li>Put your phone at waist height, about 7 ft away, in the same place every time. Use the 10-second timer.</li>
+        <li>Fit your whole body in frame, head to shoes, with a little space above and below.</li>
+        <li>Face the camera, arms slightly away from your sides, same daylight each time.</li>
+        <li>Wear plain black or neutral pieces for everything you're not photographing.</li>
+      </ol>
+    </div>
+    <div class="panel" id="settings" style="margin-top:16px"></div>
+  </section>
+
+  <!-- SAVED -->
+  <section id="view-saved" hidden>
+    <div class="fits" id="s-list"></div>
+  </section>
+</div>
+
+<!-- item sheet -->
+<div class="sheet" id="sheet" hidden>
+  <form class="panel" id="f" autocomplete="off">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="f-title">Add a piece</h2><button type="button" class="btn ghost small" id="f-close">Close</button></div>
+    <div class="photos">
+      <label class="drop" id="d-flat"><span class="label">Flat-lay / hanger</span><span class="muted" style="font-size:.85rem">Plain background, even light</span><img id="p-flat" alt="" hidden><input type="file" id="f-flat" accept="image/*"></label>
+      <label class="drop" id="d-body"><span class="label">On you (optional)</span><span class="muted" style="font-size:.85rem">Same spot and distance every time (see You tab)</span><img id="p-body" alt="" hidden><input type="file" id="f-body" accept="image/*"></label>
+    </div>
+    <div class="row"><button type="button" class="btn ghost" id="f-auto">Tag it from the photos</button><span class="status" id="f-status" aria-live="polite"></span></div>
+    <div class="field"><label class="label" for="f-name">Name</label><input type="text" id="f-name" placeholder="Brown double-knee work pants" required></div>
+    <div class="row">
+      <div class="field"><label class="label" for="f-cat">Type</label><select id="f-cat"></select></div>
+      <div class="field"><label class="label" for="f-color">Color</label><input type="text" id="f-color" placeholder="Washed brown"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label class="label" for="f-sil">Silhouette</label><select id="f-sil"><option>slim</option><option selected>regular</option><option>relaxed</option><option>oversized</option></select></div>
+      <div class="field"><label class="label" for="f-len">Length</label><select id="f-len"><option>cropped</option><option selected>regular</option><option>long</option></select></div>
+      <div class="field"><label class="label" for="f-warm">Warmth</label><select id="f-warm"><option value="1">Light</option><option value="2" selected>Medium</option><option value="3">Heavy</option></select></div>
+    </div>
+    <div class="field"><span class="label">Vibes</span><div class="chips" id="f-vibes"></div></div>
+    <div class="field"><label class="label" for="f-fit">How it fits you</label><textarea id="f-fit" placeholder="Stacks a little on sneakers, wide through the leg, sits at the natural waist"></textarea></div>
+    <div class="field"><label class="label" for="f-notes">Notes</label><input type="text" id="f-notes" placeholder="Best with chunky shoes"></div>
+    <label class="chip" style="align-self:flex-start"><input type="checkbox" id="f-wash">In the wash</label>
+    <div class="row" style="justify-content:space-between">
+      <button type="button" class="btn danger" id="f-del" hidden>Delete piece</button>
+      <button type="submit" class="btn" id="f-save">Save piece</button>
+    </div>
+  </form>
+</div>
+<div class="sheet" id="mq" hidden>
+  <div class="panel mq-panel">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="mq-title">On the mannequin</h2><button type="button" class="btn ghost small" id="mq-close">Close</button></div>
+    <div class="mq-stage" id="mq-stage"><p class="status" id="mq-status">Loading 3D…</p></div>
+    <div class="row" style="align-items:center;gap:8px">
+      <button type="button" class="btn ghost small" data-view="0">Front</button><button type="button" class="btn ghost small" data-view="1.5708">Side</button><button type="button" class="btn ghost small" data-view="3.1416">Back</button>
+      <button type="button" class="btn ghost small" id="mq-zin" aria-label="Zoom in">+</button><button type="button" class="btn ghost small" id="mq-zout" aria-label="Zoom out">−</button>
+      <label class="chip" id="mq-jacket-wrap"><input type="checkbox" id="mq-jacket" checked>Jacket on</label>
+    </div>
+    <ul class="mq-legend" id="mq-legend"></ul>
+    <p class="muted" style="font-size:.88rem">Shapes and colors come from each piece's tags, so this checks proportions and color, not fabric details. Drag to turn it.</p>
+    <p class="muted" style="font-size:.88rem" id="mq-body-note">Set your height and build in the You tab so the mannequin matches you.</p>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+
+<div class="sheet" id="tagsheet" hidden>
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2>What's in this pin?</h2><button type="button" class="btn ghost small" id="t-close">Close</button></div>
+    <div class="row" style="align-items:center;flex-wrap:nowrap"><img id="t-img" class="t-img" alt="Pin being tagged"><p class="muted" style="min-width:0">Tap every piece you can see. Next buys counts these across all your pins.</p></div>
+    <div id="t-groups" class="t-groups"></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="t-save">Save tags</button></div>
+  </div>
+</div>
+<div class="setup" id="setup" hidden>
+  <div class="setup-body" id="setup-body"></div>
+</div>
+
+<script src="supabase.js"></script>
+<script src="platform.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
