@@ -393,6 +393,10 @@ create policy "own photos remove" on storage.objects for delete to authenticated
 
   async function boot() {
     await loadLocal();
+    // A home-screen app on iPhone starts with empty storage, separate from Safari.
+    // If config.js carries the project's public URL and key, skip straight to sign-in.
+    const preset = window.ROTATION_CONFIG || {};
+    if (!cfg.mode && preset.url && preset.key) { cfg = { ...cfg, mode: "cloud", url: preset.url, key: preset.key }; saveCfg(cfg) }
     if (!cfg.mode) { showSetup("choose"); return }
     if (cfg.mode === "local") { start(); return }
     try {

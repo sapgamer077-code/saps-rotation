@@ -1,7 +1,7 @@
 /* Sap's Rotation — offline support. Bump VERSION on every release so phones pick up the new files. */
-const VERSION = "rotation-2026-09-29-2";
+const VERSION = "rotation-2026-09-29-3";
 const SHELL = [
-  "./", "index.html", "app.js", "platform.js", "manifest.webmanifest",
+  "./", "index.html", "app.js", "platform.js", "config.js", "manifest.webmanifest",
   "supabase.js", "three.min.js",
   "icon-192.png", "icon-512.png", "apple-touch-icon.png",
 ];
