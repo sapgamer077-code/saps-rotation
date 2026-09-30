@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Rotation">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap">
 <style>
 :root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
@@ -256,15 +256,17 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
 <div class="wrap">
   <header class="mast">
-    <div>
-      <p class="label" id="mast-eyebrow">Closet · fits · next buys · brands</p>
-      <h1>Rotation</h1>
-      <span class="sync-pill" id="sync-pill" data-state="local">Starting…</span>
+    <div class="rot-face" aria-hidden="true"><canvas id="rot-cv" width="160" height="280"></canvas></div>
+    <div class="mast-main">
+      <div class="mast-top"><h1>Rotation</h1><span class="sync-pill" id="sync-pill" data-state="local">Starting…</span></div>
+      <p id="mast-eyebrow">Your closet</p>
+      <p class="rot-say" id="rot-say" aria-live="polite">booting up.</p>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-make" data-tab="make">Make a fit</button>
@@ -305,7 +307,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
   <!-- CLOSET -->
   <section id="view-closet" hidden>
     <div class="row" style="justify-content:space-between;align-items:center">
-      <div class="filters" id="c-filters"></div>
+      <div class="row" style="gap:8px;align-items:center"><div class="filters" id="c-filters"></div><button type="button" class="color-toggle" id="c-color" aria-pressed="false">Show colors</button></div>
       <button class="btn" id="c-add">Add a piece</button>
     </div>
     <div id="c-body" style="margin-top:16px"></div>
@@ -381,9 +383,10 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <div class="row" style="align-items:center"><button class="btn" id="b-save">Save build</button><span class="status" id="b-state"></span></div>
       </div>
       <div class="panel you-mq">
-        <h2>Your mannequin</h2>
-        <div class="mq-stage" id="you-stage"><p class="status" id="you-status">Loading 3D…</p></div>
-        <p class="muted" style="font-size:.9rem">Updates as you change your stats. Drag sideways to turn it.</p>
+        <h2>ROT, dressed as you</h2>
+        <div class="rot-stage"><canvas id="you-rot" width="320" height="560" aria-label="ROT wearing your closet"></canvas></div>
+        <p class="rot-inline" id="you-rot-note"></p>
+        <p class="muted" style="font-size:.9rem">ROT wears your main style's pieces from your closet, then swaps in what keeps showing up in your pins. Its build follows your height and build as you change them.</p>
       </div>
     </div>
     <div class="panel" style="margin-top:16px">
@@ -437,16 +440,17 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 <div class="sheet" id="mq" hidden>
   <div class="panel mq-panel">
-    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="mq-title">On the mannequin</h2><button type="button" class="btn ghost small" id="mq-close">Close</button></div>
-    <div class="mq-stage" id="mq-stage"><p class="status" id="mq-status">Loading 3D…</p></div>
-    <div class="row" style="align-items:center;gap:8px">
-      <button type="button" class="btn ghost small" data-view="0">Front</button><button type="button" class="btn ghost small" data-view="1.5708">Side</button><button type="button" class="btn ghost small" data-view="3.1416">Back</button>
-      <button type="button" class="btn ghost small" id="mq-zin" aria-label="Zoom in">+</button><button type="button" class="btn ghost small" id="mq-zout" aria-label="Zoom out">−</button>
-      <label class="chip" id="mq-jacket-wrap"><input type="checkbox" id="mq-jacket" checked>Jacket on</label>
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="mq-title">ROT tries it on</h2><button type="button" class="btn ghost small" id="mq-close">Close</button></div>
+    <div class="mq-grid">
+      <div class="rot-stage"><canvas id="mq-rot" width="320" height="560" aria-label="ROT wearing this fit"></canvas></div>
+      <div class="mq-side">
+        <p class="rot-inline" id="mq-say"></p>
+        <label class="chip" id="mq-jacket-wrap" style="align-self:flex-start"><input type="checkbox" id="mq-jacket" checked>Jacket on</label>
+        <ul class="mq-legend" id="mq-legend"></ul>
+        <p class="muted" style="font-size:.85rem">Shapes and shades come from each piece's type and color. Pieces ROT has no drawing for yet are listed but not worn.</p>
+        <p class="muted" style="font-size:.85rem" id="mq-body-note">Set your height and build in the You tab so ROT's build matches yours.</p>
+      </div>
     </div>
-    <ul class="mq-legend" id="mq-legend"></ul>
-    <p class="muted" style="font-size:.88rem">Shapes and colors come from each piece's tags, so this checks proportions and color, not fabric details. Drag to turn it.</p>
-    <p class="muted" style="font-size:.88rem" id="mq-body-note">Set your height and build in the You tab so the mannequin matches you.</p>
   </div>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
@@ -483,6 +487,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 <script src="supabase.js"></script>
 <script src="platform.js"></script>
 <script src="catalog.js"></script>
+<script src="rot.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

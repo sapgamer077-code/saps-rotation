@@ -1,8 +1,8 @@
 /* Rotation — offline support. Bump VERSION on every release so phones pick up the new files. */
-const VERSION = "rotation-2026-09-30-1";
+const VERSION = "rotation-2026-09-30-5";
 const SHELL = [
-  "./", "index.html", "app.js", "catalog.js", "platform.js", "config.js", "manifest.webmanifest",
-  "supabase.js", "three.min.js",
+  "./", "index.html", "theme.css", "app.js", "catalog.js", "rot.js", "platform.js", "config.js", "manifest.webmanifest",
+  "supabase.js",
   "icon-192.png", "icon-512.png", "apple-touch-icon.png",
 ];
 

@@ -26,7 +26,7 @@ function sampleErr(e){const c=e&&e.code;return c==="bad_key"||c==="not_granted"?
 function setTab(t){const prev=S.tab;S.tab=t;for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",b.dataset.tab===t);
   for(const v of ["make","closet","buys","brands","inspo","you","saved"])$("view-"+v).hidden=v!==t;
   if(t==="brands")renderBrands();if(t==="buys")maybeAutoRefresh();
-  if(t==="you")openYou();else if(prev==="you")closeYou();}
+  if(t==="you")openYou();else if(prev==="you")closeYou();if(prev!==t&&typeof sayNow==="function")sayNow(true);}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 
 /* ---------- closet ---------- */
@@ -39,7 +39,7 @@ function renderFilters(){const opts=[["all","All"],...CATS.map(([v,l])=>[v,l.spl
   $("c-filters").innerHTML=opts.map(([v,l])=>`<button data-f="${v}" aria-pressed="${S.filter===v}">${esc(l)}</button>`).join("");
   $("c-filters").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.filter=b.dataset.f;renderCloset()});}
 function tagCard(it){return `<button class="tagcard${it.wash?" wash":""}" data-id="${esc(it.id)}"><span class="hole"></span>${it.wash?'<span class="flag">In wash</span>':""}${it.body?'<span class="bodydot">On-body ✓</span>':""}
-  <span class="ph">${it.flat?`<img src="${src(it.flat)}" alt="" loading="lazy">`:it.body?`<img src="${src(it.body)}" alt="" loading="lazy">`:`<span class="none">No photo yet</span>`}</span>
+  <span class="ph duo">${it.flat?`<img src="${src(it.flat)}" alt="" loading="lazy">`:it.body?`<img src="${src(it.body)}" alt="" loading="lazy">`:`<span class="none">No photo yet</span>`}</span>
   <span class="meta"><span class="label">${esc(CATNAME[it.cat]||it.cat)} · ${esc(it.sil)} · ${esc(it.len)}</span><span class="name">${esc(it.name)}</span><span class="muted" style="font-size:.85rem">${esc(it.color||"")}</span></span></button>`}
 function renderCloset(){renderFilters();$("n-closet").textContent=S.items.length;
   const box=$("c-body");
@@ -109,7 +109,7 @@ $("f-del").onclick=async()=>{const b=$("f-del");if(!b.dataset.arm){b.dataset.arm
 /* ---------- inspo ---------- */
 function renderInspo(){$("n-inspo").textContent=S.inspo.length;$("i-build").hidden=!sample;
   const g=$("i-grid");
-  g.innerHTML=S.inspo.length?S.inspo.map(p=>`<div class="inspo-card"><div class="ph"><img src="${src(p.img)}" alt="Inspiration image" loading="lazy"></div>
+  g.innerHTML=S.inspo.length?S.inspo.map(p=>`<div class="inspo-card"><div class="ph duo"><img src="${src(p.img)}" alt="Inspiration image" loading="lazy"></div>
     ${(p.tags||[]).length?`<div class="pin-tags">${p.tags.map(k=>`<span class="chip">${esc(PIECE[k]?.short||k)}</span>`).join("")}</div>`:""}
     <div class="row" style="gap:6px"><button class="btn ghost small" data-tag="${esc(p.id)}">${(p.tags||[]).length?"Edit tags":"Tag pieces"}</button><button class="btn ghost small" data-re="${esc(p.id)}">Recreate</button><button class="btn ghost small" data-rm="${esc(p.id)}">Remove</button></div></div>`).join("")
     :`<div class="empty"><h3>No inspo yet</h3><p>Save fits you like from Pinterest, Instagram or TikTok as screenshots and add them here. Tap "Tag pieces" on each one so Next buys learns what you save.</p></div>`;
@@ -168,13 +168,13 @@ function itemFig(id){const it=S.items.find(i=>i.id===id);if(!it)return"";const i
   return `<figure><div class="ph">${im?`<img src="${src(im)}" alt="">`:`<span class="label" style="padding:6px;text-align:center">${esc(CATNAME[it.cat]||"")}</span>`}</div><figcaption>${esc(it.name)}</figcaption></figure>`}
 function fitCard(f,i,mode){const voted=f.vote;return `<article class="fit"><div class="row" style="justify-content:space-between;align-items:baseline"><h3>${esc(f.title)}</h3>${f.vibe?`<span class="chip">${esc(styleName(f.vibe))}</span>`:""}</div>
   <div class="fitgrid">${boardHTML(f.items)}<div class="fit-detail">${piecesHTML(f.items)}
-  ${f.why?`<p>${esc(f.why)}</p>`:""}${f.proportion?`<p class="muted" style="font-size:.92rem"><span class="label">Proportion</span> ${esc(f.proportion)}</p>`:""}
+  ${f.why?`<p class="rot-line">${esc(f.why.charAt(0).toLowerCase()+f.why.slice(1))}</p>`:""}${f.proportion?`<p class="muted" style="font-size:.92rem"><span class="label">Proportion</span> ${esc(f.proportion)}</p>`:""}
   ${f.missing?`<p class="muted" style="font-size:.92rem"><span class="label">Missing vs. inspo</span> ${esc(f.missing)}</p>`:""}
-  <button class="btn ghost small" style="align-self:flex-start" data-mq="${mode==="new"?i:esc(f.id)}">View on mannequin</button></div></div>
+  <button class="btn ghost small" style="align-self:flex-start" data-mq="${mode==="new"?i:esc(f.id)}">ROT tries it on</button></div></div>
   ${mode==="new"?`<div class="votes"><button class="btn ghost small ${voted===1?"voted-up":""}" data-v="1" data-i="${i}">Good fit</button><button class="btn ghost small ${voted===-1?"voted-down":""}" data-v="-1" data-i="${i}">Not it</button><button class="btn ghost small" data-save="${i}">${f.saved?"Saved":"Save"}</button></div>`
   :`<div class="votes"><button class="btn ghost small" data-unsave="${esc(f.id)}">Remove</button></div>`}</article>`}
-function renderFits(){const o=$("m-out");o.innerHTML=S.lastFits.map((f,i)=>fitCard(f,i,"new")).join("");
-  o.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.mq];openMannequin(f.items,f.title)});
+function renderFits(){if(typeof sayNow==="function")sayNow();const o=$("m-out");o.innerHTML=S.lastFits.map((f,i)=>fitCard(f,i,"new")).join("");
+  o.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.mq];openMannequin(f.items,f.title,f.vibe)});
   o.querySelectorAll("[data-v]").forEach(b=>b.onclick=async()=>{const f=S.lastFits[+b.dataset.i];f.vote=+b.dataset.v;renderFits();
     if(db)try{await db.doc("feedback/"+f.key).set({title:f.title,items:f.items,vote:f.vote,at:Date.now()})}catch{}});
   o.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{const f=S.lastFits[+b.dataset.save];if(f.saved||!db)return;
@@ -329,7 +329,7 @@ function renderGaps(){const g=curGaps(),box=$("g-list");const list=liveGaps();$(
   box.innerHTML=(g.note?`<p class="muted">${esc(g.note)}</p>`:"")+list.map((x,i)=>{const brands=(x.brands||[]).map(n=>findBrand(n)).filter(Boolean);
     return `<article class="gap"><div class="gap-rank" aria-label="Priority ${i+1}">${i+1}</div><div class="gap-main">
       <div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><h3>${esc(x.item)}</h3>${x.vibe?`<span class="chip">${esc(gapStyleLabel(x))}</span>`:""}</div>
-      <p>${esc(x.why||"")}</p>
+      <p class="rot-line">${esc((x.why||"").charAt(0).toLowerCase()+(x.why||"").slice(1))}</p>
       ${(x.pins||x.unlocks)?`<div class="gap-stats">${x.pins?`<span><b>${+x.pins}</b> of your pins</span>`:""}${x.unlocks?`<span><b>${+x.unlocks}+</b> new fits with your closet</span>`:""}</div>`:""}
       ${x.size?`<span class="gap-size">Your size: ${esc(x.size)}</span>`:""}
       ${brands.length?`<div class="brands">${brands.map(r=>`<button class="brand" data-go="${esc((r.s||["all"])[0])}|${esc(r.c)}|${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}
@@ -564,7 +564,7 @@ function renderOnboard(){const d=OB.d,box=$("ob-body"),N=4;
     `<div class="field"><label class="label" for="ob-name">What should we call you?</label><input type="text" id="ob-name" autocomplete="given-name" value="${esc(d.name)}" placeholder="First name or nickname"></div>
      <div class="field"><span class="label">Which clothes do you shop for?</span><div class="chips ob-radio">${[["mens","Menswear"],["womens","Womenswear"],["both","Both"]].map(([v,l])=>`<label class="chip"><input type="radio" name="ob-shop" value="${v}"${d.shop===v?" checked":""}>${l}</label>`).join("")}</div></div>`}
   else if(OB.step===1){html=head("Your styles","Pick the styles you wear","Choose 1 to 4. Your brand atlas and next buys are built from these.")+
-    `<div class="ob-grid">${STYLE_KEYS.map(k=>`<label class="ob-card" style="--sc:${stColor(k)}"><input type="checkbox" value="${k}"${d.styles.includes(k)?" checked":""}><span class="ob-name">${esc(STYLES[k].name)}</span><span class="ob-blurb">${esc(STYLES[k].blurb)}</span></label>`).join("")}</div>`}
+    `<div class="ob-grid">${STYLE_KEYS.map(k=>`<label class="ob-card" style="--sc:${stColor(k)}"><input type="checkbox" value="${k}"${d.styles.includes(k)?" checked":""}><span class="ob-rot"><canvas data-kit="${k}" width="160" height="280"></canvas></span><span class="ob-text"><span class="ob-name">${esc(STYLES[k].name)}</span><span class="ob-blurb">${esc(STYLES[k].blurb)}</span></span></label>`).join("")}</div>`}
   else if(OB.step===2){html=head("Budget and sizes","What do you usually spend?","Brands above your budget stay hidden unless you ask for them.")+
     `<div class="chips ob-radio">${[[1,"Mostly budget ($)"],[2,"Up to mid-range ($$)"],[3,"Anything, including $$$ and resale"]].map(([v,l])=>`<label class="chip"><input type="radio" name="ob-budget" value="${v}"${d.budget===v?" checked":""}>${l}</label>`).join("")}</div>
      <p class="label" style="margin-top:6px">Your sizes (optional)</p>
@@ -576,6 +576,7 @@ function renderOnboard(){const d=OB.d,box=$("ob-body"),N=4;
     `<div class="chips">${opts.map(p=>`<label class="chip"><input type="checkbox" value="${p.key}"${d.focus.includes(p.key)?" checked":""}>${esc(p.short)}</label>`).join("")}</div>`}
   html+=`<p class="status" id="ob-msg" aria-live="polite"></p><div class="su-actions">${OB.step>0?`<button class="btn ghost" id="ob-back">Back</button>`:OB.edit?`<button class="btn ghost" id="ob-cancel">Cancel</button>`:""}<button class="btn" id="ob-next">${OB.step<N-1?"Next":"Finish"}</button></div>`;
   box.innerHTML=html;box.scrollTop=0;$("onboard").scrollTop=0;
+  if(window.ROT)box.querySelectorAll("canvas[data-kit]").forEach(cv=>{ROT.render(cv,ROT.kit(cv.dataset.kit),{scale:1,seed:3,glitch:false});const pp=ROT.PALETTES[cv.dataset.kit];if(pp)cv.parentElement.style.background=`rgb(${pp[1].join(",")})`});
   const read=()=>{if(OB.step===0){d.name=$("ob-name").value.trim();d.shop=box.querySelector('input[name="ob-shop"]:checked')?.value||""}
     else if(OB.step===1)d.styles=[...box.querySelectorAll(".ob-card input:checked")].map(i=>i.value);
     else if(OB.step===2){d.budget=+(box.querySelector('input[name="ob-budget"]:checked')?.value||2);d.sizes={tops:$("ob-tops").value.trim(),bottoms:$("ob-bottoms").value.trim(),shoes:$("ob-shoes").value.trim()}}
@@ -604,238 +605,83 @@ function renderStylePanel(){const box=$("stylepanel");if(!box)return;const p=S.p
   $("sp-edit").onclick=openOnboard}
 function renderHeader(){const n=S.prefs?.name;$("mast-eyebrow").textContent=n?`${n}'s closet`:"Closet · fits · next buys · brands"}
 function renderBrandCount(){$("n-brands").textContent=myAtlas().length}
-function applyPrefs(){
+function applyPrefs(){renderRot();
   // Prefs that arrive late from sync (slow network) close a first-run quiz that opened too early.
   if(S.prefs&&!OB.edit&&!$("onboard").hidden)closeOnboard();
   renderBrandCount();renderVibeSelect();renderVibeChips();renderHeader();renderStylePanel();renderGaps();renderInspo();if(S.tab==="brands")renderBrands();renderFresh()}
 
-/* ---------- 3D mannequin ---------- */
-let THREEP=null;
-function loadThree(){if(window.THREE)return Promise.resolve(window.THREE);if(THREEP)return THREEP;
-  THREEP=new Promise((res,rej)=>{const s=document.createElement("script");s.src="three.min.js";s.onload=()=>res(window.THREE);s.onerror=()=>{THREEP=null;rej(new Error("load"))};document.head.appendChild(s)});return THREEP}
-const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()||"#888";
-const TEX={};
-function fabricOf(it){const n=((it.name||"")+" "+(it.color||"")).toLowerCase();
-  if(it.cat==="shoes")return /boot|timberland|nubuck|suede/.test(n)?"nubuck":/loafer|penny|weejun|leather/.test(n)?"leather":"sneaker";
-  if(/jean|denim|501|rinse/.test(n))return "denim";
-  if(/down|puffer|650|quilt|vest/.test(n))return "quilt";
-  if(/fleece|sherpa/.test(n))return "fleece";
-  if(/knit|sweater|quarter|cable|cardigan|merino|cashmere/.test(n))return "knit";
-  if(/harrington|work jacket|chore|canvas|coach|khaki|chino|trouser/.test(n))return "canvas";
-  if(/leather/.test(n))return "leather";
-  return "jersey"}
-const FAB={denim:{k:7,r:.95},knit:{k:5,r:.97},quilt:{k:3.1,r:.42},fleece:{k:5,r:1},canvas:{k:9,r:.85},jersey:{k:5,r:.92},nubuck:{k:8,r:.95},leather:{k:4,r:.32},sneaker:{k:6,r:.6}};
-function texFor(T,fab,hex){const key=fab+hex;if(TEX[key])return TEX[key];const c=document.createElement("canvas");c.width=c.height=256;const x=c.getContext("2d");
-  x.fillStyle=hex;x.fillRect(0,0,256,256);const dk=a=>`rgba(0,0,0,${a})`,lt=a=>`rgba(255,255,255,${a})`;
-  const speck=(n,a)=>{for(let i=0;i<n;i++){x.fillStyle=Math.random()<.5?dk(a*Math.random()):lt(a*Math.random());x.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*1.5,1+Math.random()*1.5)}};
-  if(fab==="denim"){x.lineWidth=1.6;for(let i=-256;i<512;i+=4){x.strokeStyle=(i/4)%2?lt(.13):dk(.16);x.beginPath();x.moveTo(i,0);x.lineTo(i+256,256);x.stroke()}speck(3000,.22);
-    for(let i=0;i<40;i++){x.strokeStyle=lt(.08);x.lineWidth=1;const yy=Math.random()*256;x.beginPath();x.moveTo(0,yy);x.lineTo(256,yy+Math.random()*4);x.stroke()}}
-  else if(fab==="knit"){for(let i=0;i<256;i+=8){const g=x.createLinearGradient(i,0,i+8,0);g.addColorStop(0,dk(.22));g.addColorStop(.5,lt(.1));g.addColorStop(1,dk(.22));x.fillStyle=g;x.fillRect(i,0,8,256)}
-    for(let j=0;j<256;j+=4){x.fillStyle=dk(.05);x.fillRect(0,j,256,1)}speck(900,.08)}
-  else if(fab==="quilt"){for(let yy=0;yy<256;yy+=64)for(let xx=0;xx<256;xx+=64){const g=x.createRadialGradient(xx+30,yy+26,3,xx+32,yy+32,48);g.addColorStop(0,lt(.22));g.addColorStop(.7,dk(.05));g.addColorStop(1,dk(.45));x.fillStyle=g;x.fillRect(xx,yy,64,64)}
-    x.fillStyle=dk(.6);for(let i=0;i<256;i+=64){x.fillRect(0,i,256,2);x.fillRect(i,0,2,256)}}
-  else if(fab==="fleece"){speck(12000,.14)}
-  else if(fab==="canvas"){for(let i=0;i<256;i+=2){x.fillStyle=dk(.07);x.fillRect(0,i,256,1);x.fillStyle=lt(.05);x.fillRect(i,0,1,256)}speck(1500,.1)}
-  else if(fab==="nubuck"){speck(8000,.12);for(let i=0;i<30;i++){x.fillStyle=dk(.08);x.beginPath();x.arc(Math.random()*256,Math.random()*256,4+Math.random()*14,0,7);x.fill()}}
-  else if(fab==="leather"){speck(2000,.06)}
-  else{speck(3500,.06);for(let i=0;i<256;i+=3){x.fillStyle=dk(.035);x.fillRect(0,i,256,1)}}
-  const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.encoding=T.sRGBEncoding;t.anisotropy=4;TEX[key]=t;return t}
-function kf(keys,y){if(y<=keys[0].y)return Object.assign({},keys[0],{y});for(let i=1;i<keys.length;i++){const k1=keys[i];if(y<=k1.y){const k0=keys[i-1];let t=(y-k0.y)/(k1.y-k0.y||1);
-  const o={y};for(const p of ["a","b","n","cx","cz"])o[p]=(k0[p]??(p==="n"?2:0))+((k1[p]??(p==="n"?2:0))-(k0[p]??(p==="n"?2:0)))*t;return o}}return Object.assign({},keys[keys.length-1],{y})}
-function sampleSecs(keys,y0,y1,count,f){let out=[];for(let i=0;i<=count;i++){const y=y0+(y1-y0)*i/count;out.push(kf(keys,y))}
-  if(count>6)for(let pass=0;pass<4;pass++){out=out.map((s,i)=>{if(i===0||i===out.length-1)return s;const p=out[i-1],q=out[i+1],r=Object.assign({},s);for(const k of ["a","b","cx","cz","n"])r[k]=(p[k]??0)*.25+(s[k]??0)*.5+(q[k]??0)*.25;return r})}
-  if(f)out=out.map((s,i)=>f(s,i/count)||s);return out}
-function loftGeo(T,secs,K=6,seg=56){const pos=[],uv=[],idx=[];
-  for(const s of secs){const p=2/(s.n||2);let per=0,px=null,pz=null;
-    for(let i=0;i<=seg;i++){const t=i/seg*Math.PI*2,ct=Math.cos(t),st=Math.sin(t);
-      const x=(s.cx||0)+s.a*Math.sign(ct)*Math.pow(Math.abs(ct),p),z=(s.cz||0)+s.b*Math.sign(st)*Math.pow(Math.abs(st),p);
-      if(px!==null)per+=Math.hypot(x-px,z-pz);px=x;pz=z;pos.push(x,s.y,z);uv.push(per*K,s.y*K)}}
-  for(let r=0;r<secs.length-1;r++)for(let i=0;i<seg;i++){const a=r*(seg+1)+i,b=a+seg+1;idx.push(a,a+1,b,b,a+1,b+1)}
-  const g=new T.BufferGeometry();g.setAttribute("position",new T.Float32BufferAttribute(pos,3));g.setAttribute("uv",new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();fixSeam(g,secs.length,seg);return g}
-function fixSeam(g,rows,seg){const n=g.attributes.normal;for(let r=0;r<rows;r++){const a=r*(seg+1),b=a+seg;const x=(n.getX(a)+n.getX(b))/2,y=(n.getY(a)+n.getY(b))/2,z=(n.getZ(a)+n.getZ(b))/2;n.setXYZ(a,x,y,z);n.setXYZ(b,x,y,z)}n.needsUpdate=true}
-function wrinkle(g,amp,freq,rows,seg){if(!amp)return;const p=g.attributes.position,n=g.attributes.normal;
-  for(let i=0;i<p.count;i++){const col=i%(seg+1),ang=col/seg*Math.PI*2,y=p.getY(i);
-    const w=freq>80?amp*(Math.abs(Math.sin(y*freq))-.5):amp*(Math.sin(ang*7+y*6)*.5+Math.sin(ang*11-y*9+1.3)*.3+Math.sin(ang*4+y*3)*.2);
-    p.setXYZ(i,p.getX(i)+n.getX(i)*w,y,p.getZ(i)+n.getZ(i)*w)}p.needsUpdate=true;g.computeVertexNormals();fixSeam(g,rows,seg)}
+/* ---------- ROT: the face and voice of the app ---------- */
+function mainStyle(){const keys=userStyles();const c={};S.items.forEach(i=>(i.vibes||[]).forEach(v=>{if(keys.includes(v))c[v]=(c[v]||0)+1}));
+  return keys.slice().sort((a,b)=>(c[b]||0)-(c[a]||0))[0]||keys[0]||"streetwear"}
+function applyTheme(){if(!window.ROT)return;const pal=ROT.PALETTES[mainStyle()]||ROT.PALETTES.streetwear;const r=document.documentElement.style;
+  r.setProperty("--p-ink",pal[0].join(" "));r.setProperty("--p-paper",pal[1].join(" "));r.setProperty("--p-acc",pal[2].join(" "));
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m,i)=>m.content=i===0?`rgb(${pal[1].join(",")})`:`rgb(${pal[0].join(",")})`)}
+let rotOutfit=null,rotT=null;
+function renderRot(){clearTimeout(rotT);rotT=setTimeout(()=>{if(!window.ROT)return;
+  rotOutfit=ROT.outfitFor({style:mainStyle(),items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]});
+  ROT.render($("rot-cv"),rotOutfit,{scale:1,seed:7,glitch:true,body:rotBody()});if(S.tab==="you")drawYou();applyTheme();sayNow()},60)}
+function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase();
+  const worn=(rotOutfit?.detail||[]).find(d=>d.owned&&["outer","mid","top"].includes(ROT.SLOT[d.k]));
+  const wornItem=worn&&S.items.find(i=>{const p=PIECE[worn.k];return p&&i.cat===p.cat&&p.re.test(((i.name||"")+" "+(i.notes||"")).toLowerCase())});
+  if(t==="make"){if(n<3)return "i need a top, bottoms and shoes before i can dress you.";if(S.lastFits.length)return "rate them. i learn from every tap.";
+    return `${$("m-temp").value||60}° and ${($("m-wx").value||"clear").toLowerCase()}. want three fits?`}
+  if(t==="closet"){if(!n)return "empty closet. add a piece and i'll start wearing it.";return `${n} pieces. mostly ${st}.${wornItem?` wearing your ${wornItem.name.toLowerCase()} right now.`:""}`}
+  if(t==="buys"){const g=liveGaps()[0];return g?`${g.item.toLowerCase()}. that's the gap.`:"tag the pieces in your pins and i'll find what's missing."}
+  if(t==="brands")return `${myAtlas().length} brands for ${userStyles().map(k=>styleName(k).toLowerCase()).join(", ")}. hide what isn't you.`;
+  if(t==="inspo"){const c=tagCounts(),top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];if(!S.inspo.length)return "drop screenshots here. i read what you save.";
+    return top?`${S.inspo.length} pins. ${(PIECE[top]?.short||top).toLowerCase()} keeps showing up.`:`${S.inspo.length} pins. tag what's in them so i can read them.`}
+  if(t==="you")return `${S.prefs?.name?S.prefs.name.toLowerCase()+", ":""}this is you. i copy what you wear.`;
+  if(t==="saved")return S.fits.length?`${S.fits.length} saved fit${S.fits.length>1?"s":""}. the good ones.`:"save a fit and it lives here.";
+  return "ready."}
+let sayTimer=null,lastSaid="";
+function say(text,animate){const el=$("rot-say");if(!el)return;clearInterval(sayTimer);lastSaid=text;
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(!animate||reduce){el.textContent=text;return}
+  let i=0;el.textContent="";const caret=document.createElement("span");caret.className="rot-caret";
+  sayTimer=setInterval(()=>{i+=2;el.textContent=text.slice(0,i);el.appendChild(caret);if(i>=text.length){clearInterval(sayTimer);el.textContent=text}},22)}
+function sayNow(animate){const t=rotLine(S.tab);if(t!==lastSaid||animate)say(t,animate)}
+let showColor=false;try{showColor=localStorage.getItem("rot-color")==="1"}catch{}
+function applyColorToggle(){document.body.classList.toggle("show-color",showColor);$("c-color").setAttribute("aria-pressed",showColor);$("c-color").textContent=showColor?"Two-tone":"Show colors"}
+$("c-color").onclick=()=>{showColor=!showColor;try{localStorage.setItem("rot-color",showColor?"1":"0")}catch{}applyColorToggle()};
+applyColorToggle();
 
-function buildFigure(T,body,items,opts={}){
-  const {H,g,sh,c}=dims(body);const Y=f=>f*H;const G=new T.Group();
-  const gw=Math.pow(g,.85),gd=Math.pow(g,1.1),gf=Math.pow(g,.6);
-  const crotch=Y(c),waist=Y(c+.125),chest=Y(c+.25),armpit=Y(c+.275),shY=Y(c+.33),shTop=Y(c+.348),neckB=Y(c+.362),neckT=Y(c+.395),headC=Y(c+.45);
-  const legX=Y(.052)*Math.pow(g,.6),neckR=Y(.037)*Math.sqrt(g);
-  const TK=[{y:crotch-Y(.025),a:Y(.094)*gw,b:Y(.068)*gd,n:2.2},{y:crotch+Y(.04),a:Y(.104)*gw,b:Y(.075)*gd,n:2.4},{y:waist,a:Y(.093)*Math.pow(g,1.15),b:Y(.069)*Math.pow(g,1.35),n:2.3},
-    {y:Y(c+.2),a:Y(.1)*gw*Math.sqrt(sh),b:Y(.074)*gd,n:2.4},{y:chest,a:Y(.106)*sh*Math.pow(g,.6),b:Y(.079)*gd,n:2.5},{y:armpit,a:Y(.113)*sh,b:Y(.075)*Math.pow(g,.8),n:2.8},
-    {y:shY,a:Y(.119)*sh,b:Y(.06)*Math.pow(g,.6),n:3.2},{y:shY+Y(.009),a:Y(.106)*sh,b:Y(.056),n:2.9},{y:shTop,a:Y(.072)*sh,b:Y(.05),n:2.5},{y:neckB,a:neckR,b:neckR,n:2}];
-  const sx=Y(.119)*sh-Y(.03)+Y(.02)*(g-1);
-  const armKeys=s=>[{y:Y(.468),a:Y(.019),b:Y(.016),cx:s*(sx+Y(.047)),cz:Y(.014)},{y:Y(.55),a:Y(.027)*gf,b:Y(.024)*gf,cx:s*(sx+Y(.037)),cz:Y(.012)},
-    {y:Y(.625),a:Y(.024)*gf,b:Y(.026)*gf,cx:s*(sx+Y(.026)),cz:Y(.002)},{y:Y(.7),a:Y(.032)*gf,b:Y(.034)*gf,cx:s*(sx+Y(.012)),cz:0},{y:shY+Y(.006),a:Y(.037)*gf,b:Y(.041)*gf,cx:s*sx,cz:0}];
-  const legKeys=s=>[{y:Y(.04),a:Y(.022),b:Y(.024),cx:s*legX*.9},{y:Y(.075),a:Y(.024),b:Y(.027),cx:s*legX*.9},{y:Y(.2),a:Y(.04)*Math.pow(g,.5),b:Y(.046)*Math.pow(g,.5),cx:s*legX*.9,cz:-Y(.005)},
-    {y:Y(.265),a:Y(.036)*gf,b:Y(.038)*gf,cx:s*legX*.92},{y:Y(.3),a:Y(.041)*gf,b:Y(.043)*gf,cx:s*legX*.93},{y:Y(.4),a:Y(.05)*gw,b:Y(.053)*gd,cx:s*legX*.98},{y:crotch+Y(.06),a:Y(.06)*gw,b:Y(.062)*gd,cx:s*legX}];
-  const meshes=[];const add=(geo,m,x=0,y=0,z=0)=>{const me=new T.Mesh(geo,m);me.position.set(x,y,z);me.castShadow=true;me.receiveShadow=true;G.add(me);meshes.push(me);return me};
-  const skin=new T.MeshStandardMaterial({color:opts.skin||"#e4ded3",roughness:.55,metalness:0});
-  const fabMat=(it,tint=1)=>{const fab=fabricOf(it);return new T.MeshStandardMaterial({map:texFor(T,fab,colorOf(it)),color:new T.Color(tint,tint,tint),roughness:FAB[fab].r,metalness:0,side:T.DoubleSide})};
-  const plain=(col,r=.6,met=0)=>new T.MeshStandardMaterial({color:col,roughness:r,metalness:met});
-  const tube=(pts,r,m)=>add(new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(p=>new T.Vector3(...p))),Math.max(8,pts.length*6),r,8,false),m);
-  const shoe=items&&items.find(i=>i.cat==="shoes"),bot=items&&items.find(i=>i.cat==="bottom");
-  const its=items||[],byCat=k=>its.find(i=>i.cat===k);
-  // ---- body
-  add(loftGeo(T,sampleSecs(TK,TK[0].y,neckB,44)),skin);
-  add(loftGeo(T,sampleSecs([{y:neckB-Y(.01),a:neckR,b:neckR*1.05},{y:neckT+Y(.01),a:neckR*.92,b:neckR}],neckB-Y(.01),neckT+Y(.01),6)),skin);
-  const head=add(new T.SphereGeometry(1,48,36),skin,0,headC,Y(.004));head.scale.set(Y(.047),Y(.064),Y(.056));
-  const jaw=add(new T.SphereGeometry(1,32,24),skin,0,headC-Y(.03),Y(.012));jaw.scale.set(Y(.036),Y(.034),Y(.04));
-  for(const s of [-1,1]){add(loftGeo(T,sampleSecs(legKeys(s),Y(.035),crotch+Y(.05),30)),skin);
-    add(loftGeo(T,sampleSecs(armKeys(s),Y(.468),shY+Y(.006),30)),skin);
-    const cap=add(new T.SphereGeometry(Y(.036)*gf,24,18),skin,s*sx,shY-Y(.022),0);cap.scale.set(1,1.05,1.05);
-    add(loftGeo(T,sampleSecs([{y:Y(.385),a:Y(.008),b:Y(.012)},{y:Y(.41),a:Y(.012),b:Y(.022)},{y:Y(.45),a:Y(.012),b:Y(.021)},{y:Y(.472),a:Y(.014),b:Y(.018)}].map(k=>Object.assign(k,{cx:s*(sx+Y(.048)),cz:Y(.015)})),Y(.385),Y(.472),10)),skin);
-    if(!shoe){const f=new T.Mesh(new T.SphereGeometry(1,24,16),skin);f.scale.set(Y(.026),Y(.02),Y(.07));f.position.set(s*legX*.9,Y(.02),Y(.035));f.castShadow=true;G.add(f)}}
-  // ---- upper garments
-  const upper=[["top",byCat("top"),.004],["mid",byCat("mid"),.01],["outer",opts.noOuter?null:byCat("outer"),.017]];
-  const silF={slim:.97,regular:1.03,relaxed:1.1,oversized:1.18};
-  const chestK=kf(TK,chest);let prevShape=null,prevSl=null;const present=upper.filter(u=>u[1]);const outerMost=present.length?present[present.length-1][1]:null;
-  for(const [cat,it,off] of upper){if(!it)continue;
-    const fab=fabricOf(it),nm=(it.name||"").toLowerCase(),o=Y(off)+(fab==="quilt"?Y(.01):0),f=silF[it.sil]||1.03,boxy=it.sil!=="slim";
-    const m=fabMat(it),band=fabMat(it,.78);
-    const hem=it.len==="cropped"?waist-Y(.006):it.len==="long"?crotch-Y(.08):cat==="outer"?crotch-Y(.006):cat==="mid"?crotch+Y(.018):crotch+Y(.008);
-    const drop=it.sil==="oversized"?Y(.01):it.sil==="relaxed"?Y(.005):0;
-    const shK=kf(TK,shY),wA=chestK.a*f*.98,wB=chestK.b*f*.96;
-    const shape=s=>{const r=Object.assign({},s);if(boxy&&s.y<shY){const t=clamp((s.y-chest)/(shY-chest),0,1);r.a=Math.max(s.a,wA+(shK.a-wA)*t);r.b=Math.max(s.b,wB+(shK.b-wB)*t);r.n=Math.max(s.n,2.6)}
-      else if(s.y<chest){r.a=s.a*1.01;r.b=s.b*1.01}
-      {const t=clamp((s.y-(armpit-Y(.04)))/Y(.04),0,1),u=clamp((shTop-s.y)/Y(.02),0,1);r.a+=drop*t*t*(3-2*t)*u}r.a+=o;r.b+=o;
-      if(myPrev){const p=myPrev(s);r.a=Math.max(r.a,p.a+Y(.004));r.b=Math.max(r.b,p.b+Y(.004))}return r};
-    const myPrev=prevShape;
-    const secs=sampleSecs(TK,hem,shTop,36,shape);const collarS={y:neckB+Y(.004),a:neckR+o*.75+Y(.006),b:neckR+o*.75+Y(.006),n:2};secs.push(collarS);
-    const rib=/hood|sweat|crew|fleece|harrington|knit|quarter|sweater/.test(nm)||(cat==="outer"&&it.len==="cropped");
-    if(rib){for(const s of secs)if(s.y<hem+Y(.03)){s.a*=.975;s.b*=.975}}
-    const geo=loftGeo(T,secs,FAB[fab].k);wrinkle(geo,fab==="quilt"?Y(.006):Y(.0012),fab==="quilt"?Math.PI/Y(.045):20,secs.length,56);add(geo,m);
-    const fz=y=>{const s=shape(kf(TK,clamp(y,hem,shTop)));return s.b};
-    if(rib)add(loftGeo(T,sampleSecs(TK,hem-Y(.001),hem+Y(.028),4,s=>{const r=shape(s);r.a=r.a*.975+Y(.0025);r.b=r.b*.975+Y(.0025);return r}),6),band);
-    // sleeves
-    const short=cat==="top"&&/tee|t-shirt|polo|short/.test(nm),sEnd=short?Y(.655):cat==="outer"?Y(.472):Y(.478),ex=it.sil==="oversized"?Y(.013):it.sil==="relaxed"?Y(.007):0;
-    for(const s of [-1,1]){const ak=armKeys(s);const upA=kf(ak,Y(.7)).a;
-      const sl=sampleSecs(ak,sEnd,shY+Y(.004),24,(k,t)=>{const r=Object.assign({},k);r.a=Math.max(k.a,boxy?upA*(.7+.2*t):0)+o*.55+ex*.6;r.b=Math.max(k.b,boxy?upA*(.7+.2*t):0)+o*.55+ex*.6;if(k.y>shY-Y(.02))r.cx=k.cx+s*drop*.5;if(prevSl){const p=prevSl(k,t,s);r.a=Math.max(r.a,p.a+Y(.003));r.b=Math.max(r.b,p.b+Y(.003))}return r});
-      const sg=loftGeo(T,sl,FAB[fab].k);wrinkle(sg,fab==="quilt"?Y(.005):Y(.001),fab==="quilt"?Math.PI/Y(.045):20,sl.length,56);add(sg,m);
-      if(!short&&(rib||fab==="denim")){add(loftGeo(T,sampleSecs(ak,sEnd-Y(.001),sEnd+Y(.03),3,k=>Object.assign({},k,{a:k.a+o*.6+Y(.003),b:k.b+o*.6+Y(.003)})),FAB[fab].k),rib?band:m)}}
-    {const sh2=shape,ex2=ex,o2=o,bx=boxy,dr=drop;prevShape=sh2;const ps=prevSl;
-      prevSl=(k,t,sd)=>{const upA=kf(armKeys(sd),Y(.7)).a;const r={a:Math.max(k.a,bx?upA*(.7+.2*t):0)+o2*.55+ex2*.6,b:Math.max(k.b,bx?upA*(.7+.2*t):0)+o2*.55+ex2*.6};if(ps){const p=ps(k,t,sd);r.a=Math.max(r.a,p.a+Y(.003));r.b=Math.max(r.b,p.b+Y(.003))}return r}}
-    const isOuter=it===outerMost;
-    // collar
-    const front=y=>fz(y)+Y(.0015);
-    if(/hood/.test(nm)){const hg=new T.TorusGeometry(neckR+o+Y(.014),Y(.017),14,32,Math.PI*.7);hg.rotateZ(Math.PI*.15);const hd=add(hg,m,0,neckB+Y(.004),-Y(.012));hd.rotation.x=-Math.PI/2;hd.scale.set(1,1.2,1);
-      const bag=add(new T.SphereGeometry(1,28,20),m,0,shY-Y(.035),-(fz(shY-Y(.035))+Y(.012)));bag.scale.set(Y(.07),Y(.06),Y(.028));
-      for(const s of [-1,1])tube([[s*Y(.02),neckB,front(neckB)+Y(.006)],[s*Y(.021),neckB-Y(.05),front(neckB-Y(.05))+Y(.004)],[s*Y(.022),neckB-Y(.085),front(neckB-Y(.085))+Y(.003)]],Y(.0022),plain("#d8d4cc",.8))}
-    else if(/fleece|harrington|down|650|puffer|quarter|track|stand/.test(nm)){add(loftGeo(T,[{y:neckB-Y(.004),a:neckR+o*.7+Y(.009),b:neckR+o*.7+Y(.009)},{y:neckB+Y(.03),a:neckR+o*.6+Y(.011),b:neckR+o*.6+Y(.012)}],FAB[fab].k),band)}
-    else if(/shirt|oxford|button|work jacket|jean jacket|denim|chore|anderson|jwa|collar/.test(nm)){add(loftGeo(T,[{y:neckB-Y(.004),a:neckR+o*.7+Y(.007),b:neckR+o*.7+Y(.008)},{y:neckB+Y(.018),a:neckR+o*.6+Y(.009),b:neckR+o*.6+Y(.009)}],FAB[fab].k),m);
-      for(const s of [-1,1]){const fl=add(new T.BoxGeometry(Y(.036),Y(.048),Y(.003)),m,s*Y(.03),neckB-Y(.012),front(neckB-Y(.012))+Y(.004));fl.rotation.set(-.35,s*.35,s*.62)}}
-    else{add(new T.TorusGeometry(neckR+o*.75+Y(.006),Y(.0045),8,40),band,0,neckB+Y(.002),0).rotation.x=Math.PI/2}
-    // closures & details
-    const full=cat!=="top"&&/zip|jacket|harrington|fleece|down|650|puffer|cardigan|work|coat/.test(nm)&&!/quarter|pullover|crewneck|sweatshirt/.test(nm);
-    const zipCol=/brass|gold/.test((it.color||"").toLowerCase())?"#b89a55":new T.Color(colorOf(it)).multiplyScalar(.55).getStyle();
-    if(isOuter&&(full||/quarter/.test(nm))){const y0=full?hem+Y(.004):chest-Y(.02),pts=[];for(let k=0;k<=10;k++){const y=y0+(neckB-y0)*k/10;pts.push([0,y,front(y)+Y(.002)])}tube(pts,Y(.0028),plain(zipCol,.4,/b89a55/.test(zipCol)?.6:.1))}
-    if(isOuter&&/snap/.test(nm)){const pts=[];for(let k=0;k<=6;k++){const y=chest-Y(.02)+(neckB-chest+Y(.02))*k/6;pts.push([Y(.012),y,front(y)+Y(.002)])}tube(pts,Y(.006),band);
-      for(let k=0;k<3;k++){const y=chest+Y(.01)+k*Y(.03);add(new T.SphereGeometry(Y(.004),10,8),plain("#6b6f78",.4,.5),Y(.012),y,front(y)+Y(.007))}}
-    if(isOuter&&/work|chore|jean jacket|denim|anderson|jwa/.test(nm)&&cat==="outer"){for(const s of [-1,1]){const y=hem+Y(.07),p=add(new T.BoxGeometry(Y(.055),Y(.06),Y(.004)),band,s*Y(.058),y,front(y)+Y(.004));p.rotation.y=s*.12}}
-    if(isOuter&&/hood/.test(nm)&&!full){const y=hem+Y(.07),p=add(new T.BoxGeometry(Y(.12),Y(.07),Y(.004)),m,0,y,front(y)+Y(.004))}
-    if(isOuter&&/crest|logo|emblem/.test(nm)){const y=chest+Y(.01),e=add(new T.CircleGeometry(Y(.012),20),plain(/red/.test(nm+it.color)?"#b0282a":"#d9d2c4",.7),-Y(.05),y,front(y)+Y(.005));}
-  }
-  // ---- bottoms
-  if(bot){const fab=fabricOf(bot),m=fabMat(bot),band=fabMat(bot,.82),o=Y(.007),nm=(bot.name||"").toLowerCase();
-    const extra=bot.sil==="oversized"?Y(.009):bot.sil==="relaxed"?Y(.005):0;
-    const shorts=/short|jort/.test(nm),hw=({slim:Y(.03),regular:Y(.036),relaxed:Y(.043),oversized:Y(.05)}[bot.sil]||Y(.038))*Math.pow(g,.4);
-    const stack=!shorts&&(bot.sil==="oversized"||bot.sil==="relaxed")&&bot.len!=="cropped";
-    const hemY=shorts?Y(.29):bot.len==="cropped"?Y(.085):stack?Y(.017):bot.sil==="slim"?Y(.052):Y(.036);
-    const top=crotch+Y(.05);
-    for(const s of [-1,1]){const lk=legKeys(s);const topA=kf(lk,top).a+o+extra;
-      const secs=sampleSecs(lk,hemY,top,40,(k,t)=>{const r=Object.assign({},k);const lin=hw+(topA-hw)*Math.pow(t,1.3);
-        if(bot.sil==="slim"){r.a=Math.max(k.a+o,lin);r.b=Math.max(k.b+o,lin*1.05)}else{r.a=Math.max(k.a+o+extra*t,lin);r.b=Math.max(k.b+o+extra*t,lin*1.06)}
-        r.cx=k.cx+s*extra*.35;r.n=2.1;
-        if(stack&&k.y<hemY+Y(.1)){const w=1+.07*Math.sin((k.y-hemY)/Y(.1)*Math.PI*3.2)*(1-(k.y-hemY)/Y(.1));r.a*=w;r.b*=w}
-        if(k.y<hemY+Y(.01)&&!shorts){r.cz=(k.cz||0)-Y(.004)}return r});
-      const geo=loftGeo(T,secs,FAB[fab].k);wrinkle(geo,Y(.0012),20,secs.length,56);add(geo,m);
-}
-    const seat=sampleSecs(TK,crotch-Y(.012),waist+Y(.006),12,s=>Object.assign({},s,{a:s.a+o+extra*.5,b:s.b+o+extra*.4}));{const s0=seat[0];seat.unshift(Object.assign({},s0,{y:s0.y-Y(.02),a:s0.a*.1,b:s0.b*.1}),Object.assign({},s0,{y:s0.y-Y(.012),a:s0.a*.6,b:s0.b*.4}))}const sg=loftGeo(T,seat,FAB[fab].k);add(sg,m);
-    add(loftGeo(T,sampleSecs(TK,waist-Y(.022),waist+Y(.008),3,s=>Object.assign({},s,{a:s.a+o+extra*.5+Y(.003),b:s.b+o+extra*.4+Y(.003)})),FAB[fab].k),band);
-    const fr=y=>kf(TK,y).b+o+extra*.4;
-    tube([[0,waist-Y(.04),fr(waist-Y(.04))+Y(.002)],[Y(.006),crotch+Y(.04),fr(crotch+Y(.04))+Y(.002)],[0,crotch-Y(.005),fr(crotch)+Y(.001)]],Y(.0015),band);
-    if(fab==="denim"){add(new T.CylinderGeometry(Y(.006),Y(.006),Y(.003),16),plain("#b89060",.35,.7),0,waist-Y(.025),fr(waist-Y(.025))+Y(.004)).rotation.x=Math.PI/2}
-  }
-  // ---- shoes
-  if(shoe){const nm=(shoe.name||"").toLowerCase(),boot=/boot|timberland/.test(nm),loaf=/loafer|penny|weejun/.test(nm);
-    const upM=fabMat(shoe),soleM=plain(boot?"#5b3b24":loaf?"#241612":"#ecebe6",boot?.9:.6);
-    const prof=boot?[[0,.033,.078],[.1,.037,.082],[.35,.041,.07],[.55,.044,.056],[.78,.044,.05],[.93,.038,.044],[1,.02,.028]]
-      :loaf?[[0,.03,.038],[.15,.033,.036],[.45,.037,.036],[.7,.039,.03],[.9,.034,.024],[1,.018,.014]]
-      :[[0,.032,.05],[.2,.036,.048],[.5,.04,.042],[.75,.041,.036],[.93,.035,.028],[1,.018,.016]];
-    const soleT=boot?Y(.02):loaf?Y(.011):Y(.016),L=Y(boot?.155:.148),z0=-Y(.038);
-    const capd=secs=>{const f=secs[0],l=secs[secs.length-1],d=L*.012;return [Object.assign({},f,{y:f.y-d,a:f.a*.35,b:f.b*.55}),...secs,Object.assign({},l,{y:l.y+d*.6,a:l.a*.3,b:l.b*.5})]};
-    for(const s of [-1,1]){const x=s*legX*.9;
-      const up=capd(prof.map(([t,w,h])=>({y:z0+L*t,a:Y(w),b:Y(h)/2,cz:-(soleT+Y(h)/2),n:loaf?2.4:3})));const ug=loftGeo(T,up,FAB[fabricOf(shoe)].k,40);ug.rotateX(Math.PI/2);add(ug,upM,x,0,0);
-      const sp=capd(prof.map(([t,w])=>({y:z0+L*t,a:Y(w)+Y(.003),b:soleT/2,cz:-soleT/2,n:3.5})));const sg=loftGeo(T,sp,4,40);sg.rotateX(Math.PI/2);add(sg,soleM,x,0,0);
-      if(boot){for(let k=0;k<7;k++){const lug=add(new T.BoxGeometry(Y(.07),Y(.006),Y(.01)),soleM,x,-Y(.001),z0+L*(.08+k*.13))}
-        add(loftGeo(T,[{y:soleT+Y(.07),a:Y(.034),b:Y(.039)},{y:soleT+Y(.1),a:Y(.034),b:Y(.039)},{y:soleT+Y(.112),a:Y(.036),b:Y(.041)}].map(k=>Object.assign(k,{cx:x,cz:-Y(.004)})),8),upM);
-        const col=add(new T.TorusGeometry(Y(.037),Y(.009),10,32),plain("#2e2118",.5),x,soleT+Y(.114),-Y(.004));col.rotation.x=Math.PI/2;col.scale.set(1,1.1,1);
-        const lc=plain("#c79a2a",.7);for(let k=0;k<5;k++){const y=soleT+Y(.035)+k*Y(.017),zz=Y(.03)+Y(.016)*(4-k)*.35;tube([[x-Y(.018),y,zz],[x+Y(.018),y+Y(.012),zz+Y(.002)]],Y(.0018),lc);tube([[x+Y(.018),y,zz],[x-Y(.018),y+Y(.012),zz+Y(.002)]],Y(.0018),lc)}}
-      else if(loaf){const strap=add(new T.BoxGeometry(Y(.06),Y(.008),Y(.012)),fabMat(shoe,.8),x,soleT+Y(.03),z0+L*.52);strap.rotation.x=-.25;
-        const moc=add(new T.TorusGeometry(Y(.032),Y(.0022),6,32,Math.PI),fabMat(shoe,.7),x,soleT+Y(.026),z0+L*.66);moc.rotation.x=-Math.PI/2+.2;moc.scale.set(1,1.5,1)}
-      else{tube([[x,soleT+Y(.045),z0+L*.45],[x,soleT+Y(.03),z0+L*.75]],Y(.012),upM)}
-    }}
-  G.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
-  G.scale.setScalar(H/(headC+Y(.064)));return {G,H};
-}
-class Viewer{constructor(host){this.host=host;this.rot=0;this.zoom=1;this.spin=!matchMedia("(prefers-reduced-motion: reduce)").matches;this.fig=null;this.alive=true}
-  async init(){const T=this.T=await loadThree();if(!this.alive)return;
-    const r=this.r=new T.WebGLRenderer({antialias:true,alpha:true});r.setPixelRatio(Math.min(devicePixelRatio||1,2));r.outputEncoding=T.sRGBEncoding;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.08;
-    r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;const el=r.domElement;el.style.display="block";el.style.touchAction="pan-y";this.host.appendChild(el);
-    this.scene=new T.Scene();this.cam=new T.PerspectiveCamera(24,1,.05,60);
-    this.scene.add(new T.HemisphereLight(0xffffff,0x8a8378,.55));
-    const key=new T.DirectionalLight(0xfff3e6,1.7);key.position.set(1.3,2.8,2.3);key.castShadow=true;key.shadow.mapSize.set(1024,1024);const sc=key.shadow.camera;sc.left=-1;sc.right=1;sc.top=2.2;sc.bottom=-.2;sc.near=.5;sc.far=8;key.shadow.bias=-.0006;key.shadow.radius=4;this.scene.add(key);
-    const fill=new T.DirectionalLight(0xdde6ff,.6);fill.position.set(-2.2,1.4,1.2);this.scene.add(fill);
-    const rim=new T.DirectionalLight(0xffffff,.9);rim.position.set(-.5,2.2,-2.6);this.scene.add(rim);
-    const gnd=new T.Mesh(new T.PlaneGeometry(6,6),new T.ShadowMaterial({opacity:.22}));gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;this.scene.add(gnd);
-    let px=null;el.addEventListener("pointerdown",e=>{this.spin=false;px=e.clientX;if(e.pointerType==="mouse")el.setPointerCapture(e.pointerId)});
-    el.addEventListener("pointermove",e=>{if(px===null)return;this.rot+=(e.clientX-px)*.012;px=e.clientX});
-    const up=()=>{px=null};el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);el.addEventListener("pointerleave",up);
-    el.addEventListener("wheel",e=>{e.preventDefault();this.setZoom(this.zoom*(e.deltaY>0?1.08:.93))},{passive:false});
-    this.ro=new ResizeObserver(()=>this.size());this.ro.observe(this.host);this.size();
-    const loop=()=>{if(!this.alive)return;if(this.spin)this.rot+=.005;if(this.fig)this.fig.rotation.y=this.rot;this.r.render(this.scene,this.cam);this.raf=requestAnimationFrame(loop)};loop();}
-  size(){if(!this.r)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.r.setSize(w,h,false);this.r.domElement.style.width=w+"px";this.r.domElement.style.height=h+"px";this.cam.aspect=w/h;this.cam.updateProjectionMatrix();this.frame()}
-  frame(){if(!this.cam)return;const H=this.H||1.78;const fit=H*1.1/(2*Math.tan(12*Math.PI/180));const asp=this.cam.aspect<.55?.55/this.cam.aspect:1;
-    this.cam.position.set(0,H*.56,fit*asp*this.zoom);this.cam.lookAt(0,H*.5,0)}
-  setZoom(z){this.zoom=clamp(z,.35,1.5);this.frame()}
-  view(r){this.spin=false;this.rot=r}
-  set(body,items,opts){if(!this.T)return;if(this.fig){this.scene.remove(this.fig);this.fig.traverse(o=>{o.geometry?.dispose();o.material?.dispose()})}
-    const {G,H}=buildFigure(this.T,body,items,opts);this.fig=G;this.H=H;G.rotation.y=this.rot;this.scene.add(G);this.frame()}
-  dispose(){this.alive=false;cancelAnimationFrame(this.raf);this.ro?.disconnect();if(this.fig)this.fig.traverse(o=>{o.geometry?.dispose();o.material?.dispose()});this.r?.dispose();this.r?.domElement.remove()}}
-
-
-let MQ=null,mqState=null;
-async function openMannequin(ids,title){const its=fitItems(ids);mqState={its};$("mq-title").textContent=title||"On the mannequin";
+/* ---------- ROT try-on (replaces the 3D mannequin) ---------- */
+// ROT's build: wider for broader/heavier builds, taller or shorter with height
+function rotBody(b){b=Object.assign({},BODY_DEF,b||S.body||{});const d=dims(b);
+  const sx=clamp(0.9+(d.g-0.82)*0.28+(d.sh-1)*0.5,0.86,1.2),sy=clamp(0.9+(d.inches-62)*0.011,0.9,1.05);return {sx,sy}}
+let mqState=null;
+function drawTryOn(){if(!mqState||!window.ROT)return;const its=$("mq-jacket").checked?mqState.its:mqState.its.filter(i=>i.cat!=="outer");
+  const style=STYLES[mqState.vibe]?mqState.vibe:mainStyle();ROT.render($("mq-rot"),ROT.outfitFromItems(its,style),{scale:2,seed:9,glitch:false,body:rotBody()})}
+function openMannequin(ids,title,vibe){const its=fitItems(ids);mqState={its,vibe};$("mq-title").textContent=title||"ROT tries it on";
   $("mq-jacket-wrap").hidden=!its.some(i=>i.cat==="outer");$("mq-jacket").checked=true;
-  $("mq-legend").innerHTML=its.map(i=>`<li><span class="sw" style="background:${colorOf(i)}"></span>${esc(i.name)} <span class="muted">· ${esc(i.sil)}${i.len&&i.len!=="regular"?", "+esc(i.len):""}</span></li>`).join("");
-  $("mq-body-note").hidden=!!S.body;$("mq").hidden=false;$("mq-status").textContent="Loading 3D…";$("mq-status").hidden=false;
-  try{if(!MQ){MQ=new Viewer($("mq-stage"));await MQ.init()}MQ.rot=0;MQ.zoom=1;MQ.set(S.body,its);$("mq-status").hidden=true}
-  catch{$("mq-status").textContent="The 3D view couldn't load here. Check your connection and try again."}}
-function closeMannequin(){$("mq").hidden=true;if(MQ){MQ.dispose();MQ=null}}
+  $("mq-legend").innerHTML=its.map(i=>{const worn=!!ROT.matchPiece(i);
+    return `<li><span class="sw" style="background:${colorOf(i)}"></span>${esc(i.name)} <span class="muted">· ${worn?esc(i.sil):"not drawn yet"}</span></li>`}).join("");
+  $("mq-say").textContent=its.some(i=>i.cat==="outer")?"this is me in your fit. toggle the jacket to see what's under it.":"this is me in your fit.";
+  $("mq-body-note").hidden=!!S.body;$("mq").hidden=false;drawTryOn()}
+function closeMannequin(){$("mq").hidden=true}
 $("mq-close").onclick=closeMannequin;$("mq").addEventListener("click",e=>{if(e.target.id==="mq")closeMannequin()});
-document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>MQ?.view(+b.dataset.view));
-$("mq-zin").onclick=()=>MQ?.setZoom(MQ.zoom*.85);$("mq-zout").onclick=()=>MQ?.setZoom(MQ.zoom*1.15);
-$("mq-jacket").onchange=()=>{if(MQ&&mqState)MQ.set(S.body,mqState.its,{noOuter:!$("mq-jacket").checked})};
+$("mq-jacket").onchange=drawTryOn;
 
 /* ---------- you tab ---------- */
-let YV=null,yT=null;
-async function openYou(){fillBodyForm();if(YV)return;YV=new Viewer($("you-stage"));$("you-status").hidden=false;
-  try{await YV.init();YV.set(readBodyForm(),[]);$("you-status").hidden=true}catch{$("you-status").textContent="The 3D preview couldn't load here."}}
-function closeYou(){if(YV){YV.dispose();YV=null}}
-["b-ft","b-in","b-lb","b-build","b-sh","b-prop"].forEach(id=>$(id).addEventListener("input",()=>{clearTimeout(yT);yT=setTimeout(()=>YV?.set(readBodyForm(),[]),120)}));
+let yT=null;
+function drawYou(body){if(!window.ROT||!$("you-rot"))return;const o=rotOutfit||ROT.outfitFor({style:mainStyle(),items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]});
+  ROT.render($("you-rot"),o,{scale:2,seed:7,glitch:true,body:rotBody(body)});
+  const owned=o.detail?o.detail.filter(d=>d.owned).length:0,pinned=o.detail?o.detail.filter(d=>d.pinned&&!d.owned).length:0;
+  $("you-rot-note").textContent=`${owned} piece${owned===1?"":"s"} from your closet, ${pinned} from your pins. style: ${styleName(mainStyle()).toLowerCase()}.`}
+function openYou(){fillBodyForm();drawYou()}
+function closeYou(){}
+["b-ft","b-in","b-lb","b-build","b-sh","b-prop"].forEach(id=>$(id).addEventListener("input",()=>{clearTimeout(yT);yT=setTimeout(()=>drawYou(readBodyForm()),80)}));
 $("b-save").onclick=async()=>{if(!db){toast("Can't save in this view.");return}const b=readBodyForm();$("b-save").disabled=true;
   try{await db.doc("body/me").set({...b,at:Date.now()});toast("Build saved")}catch{toast("Couldn't save. Try again.")}finally{$("b-save").disabled=false}};
 
 /* ---------- saved ---------- */
 function renderSaved(){$("n-saved").textContent=S.fits.length;const l=$("s-list");
   l.innerHTML=S.fits.length?S.fits.map(f=>fitCard(f,0,"saved")).join(""):`<div class="empty"><h3>No saved fits</h3><p>Hit Save on a fit you'd actually wear and it lands here.</p></div>`;
-  l.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.mq);if(f)openMannequin(f.items,f.title)});
+  l.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.mq);if(f)openMannequin(f.items,f.title,f.vibe)});
   l.querySelectorAll("[data-unsave]").forEach(b=>b.onclick=async()=>{try{await db.doc("fits/"+b.dataset.unsave).delete()}catch{toast("Couldn't remove.")}});}
 
 function renderAll(){renderCloset();renderInspo();renderSaved();renderRecreate();renderGaps();renderHeader();renderStylePanel()}
-renderAll();RP.renderSettings();const HASH_TAB=(location.hash||"").slice(1);const START=["make","closet","buys","brands","inspo","you","saved"].includes(HASH_TAB)?HASH_TAB:null;setTab(START||"closet");
+renderAll();RP.renderSettings();renderRot();const HASH_TAB=(location.hash||"").slice(1);const START=["make","closet","buys","brands","inspo","you","saved"].includes(HASH_TAB)?HASH_TAB:null;setTab(START||"closet");
 
 /* ---------- boot ---------- */
 (async()=>{
@@ -848,18 +694,18 @@ renderAll();RP.renderSettings();const HASH_TAB=(location.hash||"").slice(1);cons
   let first=true;
   const sub=(q,key,after)=>q.onSnapshot(snap=>{S[key]=snap.docs.map(d=>({id:d.id,...d.data()}));after();
     if(key==="items"&&first){first=false;S.loaded=true;if(!START)setTab(S.items.length?"make":"closet");else if(START==="buys")maybeAutoRefresh()}},()=>{});
-  sub(db.collection("items").orderBy("created","desc"),"items",()=>{renderCloset();renderFits();renderFresh();if(!sample)renderGaps();if(S.tab==="brands")renderBrands()});
+  sub(db.collection("items").orderBy("created","desc"),"items",()=>{renderRot();renderCloset();renderFits();renderFresh();if(!sample)renderGaps();if(S.tab==="brands")renderBrands()});
   db.doc("prefs/me").onSnapshot(d=>{S.prefs=d.exists?d.data():null;applyPrefs()},()=>{});
   sub(db.collection("brandmarks"),"marks",()=>{renderBrandCount();renderFresh();if(!sample)renderGaps();if(S.tab==="brands")renderBrands()});
   sub(db.collection("mybrands"),"mybrands",()=>{renderBrandCount();if(!sample)renderGaps();if(S.tab==="brands")renderBrands()});
   db.doc("aiatlas/latest").onSnapshot(d=>{S.ai=d.exists?d.data():null;renderBrandCount();if(!sample)renderGaps();if(S.tab==="brands")renderBrands()},()=>{});
   sub(db.collection("gapfb"),"gapfb",()=>{renderGaps();if(S.tab==="brands")renderBrands()});
-  sub(db.collection("inspo").orderBy("created","desc"),"inspo",()=>{renderInspo();renderFresh();if(!sample)renderGaps();if(S.recreate&&!S.inspo.find(p=>p.id===S.recreate.id)){S.recreate=null;renderRecreate()}});
-  sub(db.collection("fits").orderBy("at","desc").limit(60),"fits",renderSaved);
+  sub(db.collection("inspo").orderBy("created","desc"),"inspo",()=>{renderRot();renderInspo();renderFresh();if(!sample)renderGaps();if(S.recreate&&!S.inspo.find(p=>p.id===S.recreate.id)){S.recreate=null;renderRecreate()}});
+  sub(db.collection("fits").orderBy("at","desc").limit(60),"fits",()=>{renderSaved();sayNow()});
   sub(db.collection("feedback").orderBy("at","desc").limit(60),"feedback",()=>{});
   db.collection("profile").orderBy("at","desc").limit(1).onSnapshot(q=>{S.profile=q.docs[0]?q.docs[0].data():null;renderInspo()},()=>{});
   db.collection("gaps").orderBy("at","desc").limit(1).onSnapshot(q=>{S.gaps=q.docs[0]?q.docs[0].data():null;renderGaps();if(S.tab==="brands")renderBrands();if(S.tab==="buys")maybeAutoRefresh()},()=>{});
-  db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;if(S.tab==="you"){fillBodyForm();YV?.set(readBodyForm(),[])}},()=>{});
+  db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;renderRot();if(S.tab==="you")fillBodyForm()},()=>{});
   // New here? Ask the style quiz once the account's data has had a chance to sync down.
   await RP.firstSync;if(!S.prefs)openOnboard();
 })();
