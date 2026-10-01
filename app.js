@@ -20,7 +20,7 @@ function tasteText(){const p=S.prefs||{};const f=(p.focus||[]).map(k=>PIECE[k]?.
   return [f.length?`They want more of: ${f.join(", ")}.`:"",`Budget: ${b===1?"mostly budget ($)":b===2?"up to mid-range ($$)":"open to premium ($$$) and resale"}.`,
     (z.tops||z.bottoms||z.shoes)?`Sizes: tops ${z.tops||"not given"}, bottoms ${z.bottoms||"not given"}, shoes ${z.shoes||"not given"}.`:"",typeof sizeText==="function"?sizeText():""].filter(Boolean).join(" ")}
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
-function sampleErr(e){const c=e&&e.code;return c==="bad_key"||c==="not_granted"?"Google rejected your Gemini key. Check it in You → Settings.":c==="rate_limited"?"Today's free Gemini limit is used up. Try again tomorrow.":c==="bad_model"?"That Gemini model isn't available. Change it in You → Settings.":c==="invalid_json"?"The answer came back garbled. Try again.":c==="network"?"Couldn't reach Gemini. Check your connection.":c==="cancelled"?"Stopped.":"Gemini couldn't answer"+(e&&e.message?": "+e.message:".")}
+function sampleErr(e){const c=e&&e.code;if(c==="busy")return "Gemini is overloaded right now, even after retrying. Try again in a minute.";return c==="bad_key"||c==="not_granted"?"Google rejected your Gemini key. Check it in You → Settings.":c==="rate_limited"?"Today's free Gemini limit is used up. Try again tomorrow.":c==="bad_model"?"That Gemini model isn't available. Change it in You → Settings.":c==="invalid_json"?"The answer came back garbled. Try again.":c==="network"?"Couldn't reach Gemini. Check your connection.":c==="cancelled"?"Stopped.":"Gemini couldn't answer"+(e&&e.message?": "+e.message:".")}
 
 /* ---------- tabs ---------- */
 function setTab(t){const prev=S.tab;S.tab=t;for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",b.dataset.tab===t);
@@ -65,13 +65,14 @@ function openSheet(it){S.editing=it||null;S.pending={flat:null,body:null};$("f")
     FORMV.forEach(v=>$("fv-"+v).checked=(it.vibes||[]).includes(v));}
   setPreview("flat",it?.flat&&src(it.flat));setPreview("body",it?.body&&src(it.body));
   $("f-wear").hidden=!it;if(it){$("f-wear-stat").textContent=wearStatText(it);$("f-wore").textContent=wornToday([it.id])?"Logged today ✓":"Wore it today"}
-  $("f-auto").hidden=!sample;$("sheet").hidden=false;}
+  $("f-auto").hidden=!sample;if(!sample)$("f-status").textContent="Add your Gemini key in You → Settings on this device and ROT will identify and tag pieces from the photo.";$("sheet").hidden=false;}
 $("c-add").onclick=()=>openSheet(null);
 $("f-close").onclick=()=>$("sheet").hidden=true;
 $("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")$("sheet").hidden=true});
 for(const k of ["flat","body"])$("f-"+k).onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=await shrink(f);S.pending[k]=b;setPreview(k,URL.createObjectURL(b));
   // with Gemini on, a new photo gets identified and tagged right away
-  if(sample&&(!S.editing||!$("f-brand").value))identifyPiece(true)};
+  if(sample&&(!S.editing||!$("f-brand").value))identifyPiece(true);
+  else if(!sample)$("f-status").textContent="No Gemini key on this device, so fill it in by hand, or add your key in You → Settings and pick the photo again."};
 
 // Gemini identifies the piece (brand, model, color) from the photos and fills in the tags
 async function identifyPiece(auto){

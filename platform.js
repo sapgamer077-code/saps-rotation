@@ -216,7 +216,24 @@
     if (!cfg.geminiKey) return null;
     const model = cfg.geminiModel || DEFAULT_MODEL;
     const b64 = async blob => { const buf = new Uint8Array(await blob.arrayBuffer()); let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000)); return btoa(s) };
+    // Busy or out of quota on one model? Wait and retry, then try other Flash models before giving up.
+    const BACKUPS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
+    const wait = ms => new Promise(r => setTimeout(r, ms));
     async function call(input, opts = {}) {
+      const chain = [opts.model || model, ...BACKUPS.filter(m => m !== (opts.model || model))];
+      let last;
+      for (const m of chain) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try { return await callOnce(input, { ...opts, model: m }) }
+          catch (e) { last = e;
+            if (e.code === "bad_key" || e.code === "cancelled" || e.code === "network") throw e;
+            if (e.code === "busy" && attempt === 0) { await wait(1500 + Math.random() * 1000); continue }
+            break } // bad_model, rate_limited, busy twice, other errors: next model
+        }
+      }
+      throw last;
+    }
+    async function callOnce(input, opts = {}) {
       const text = typeof input === "string" ? input : input.map(t => t.content).join("\n\n");
       const parts = [{ text }];
       for (const im of (opts.images || [])) parts.push({ inline_data: { mime_type: im.type || "image/jpeg", data: await b64(im) } });
@@ -231,7 +248,7 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         const m = j.error?.message || r.statusText;
-        throw { code: r.status === 429 ? "rate_limited" : r.status === 404 ? "bad_model" : /api key|permission|unauth/i.test(m) ? "bad_key" : "ai_error", message: m };
+        throw { code: r.status === 429 ? "rate_limited" : r.status === 404 ? "bad_model" : r.status === 503 || r.status === 500 || /high demand|overloaded|unavailable/i.test(m) ? "busy" : /api key|permission|unauth/i.test(m) ? "bad_key" : "ai_error", message: m };
       }
       return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
     }
