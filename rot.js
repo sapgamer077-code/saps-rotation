@@ -251,7 +251,8 @@
   function rng(seed) { let s = (seed >>> 0) || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296 }
   function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(2 * Math.PI * r()) }
 
-  function dither(G, palette, { seed = 1, glitch = true, pile = false } = {}) {
+  function dither(G, palette, { seed = 1, glitch = true, pile = false, cutout = false } = {}) {
+    const W = G.cv.width, H = G.cv.height;
     const src = G.c.getImageData(0, 0, W, H).data, out = new Uint8ClampedArray(W * H * 4);
     const mask = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) mask[i] = src[i * 4 + 3] > 110 ? 1 : 0;
     const R = rng(seed), [ink, paper, acc] = palette;
@@ -267,7 +268,7 @@
         a = 1 - 0.14 * (y / H) ** 2 - 0.55 * Math.exp(-(((x - 80) / 46) ** 2 + ((y - 266) / 7) ** 2));
       }
       const c = a > B8[y & 7][x & 7] / 64 ? paper : ink;
-      out[i * 4] = c[0]; out[i * 4 + 1] = c[1]; out[i * 4 + 2] = c[2]; out[i * 4 + 3] = 255;
+      out[i * 4] = c[0]; out[i * 4 + 1] = c[1]; out[i * 4 + 2] = c[2]; out[i * 4 + 3] = cutout && !mask[i] ? 0 : 255;
     }
     for (const [x, y] of G.glints) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
       const i = ((y + dy) * W + (x + dx)) * 4; if (i >= 0 && i < out.length) { out[i] = acc[0]; out[i + 1] = acc[1]; out[i + 2] = acc[2] }
@@ -315,6 +316,7 @@
     mannequin(G);
     const bySlot = {}; for (const [k, v] of layers) { const s = SLOT[k]; if (s && LAYER[k]) bySlot[s] = [k, v] }
     if (bySlot.top && bySlot.top[0] === "dress") delete bySlot.bottom;
+    if ((bySlot.top && bySlot.top[0] === "dress") || (bySlot.bottom && /skirt/.test(bySlot.bottom[0])) || (bySlot.outer && bySlot.outer[0] === "trench")) G.flags.longLow = true;
     // hair and hats set flags; drawn in the head stage
     for (const s of ORDER) {
       const e = bySlot[s]; if (!e) continue; const [k, v] = e;
@@ -380,13 +382,75 @@
     return { style, layers };
   }
 
-  function render(canvas, outfit, { scale = 2, seed = 1, glitch = true, body = null } = {}) {
-    const G = ctx(body); drawOutfit(G, outfit.layers);
-    const img = dither(G, PALETTES[outfit.style] || PALETTES.streetwear, { seed, glitch, pile: G.flags.pile });
-    const tmp = document.createElement("canvas"); tmp.width = W; tmp.height = H; tmp.getContext("2d").putImageData(img, 0, 0);
-    canvas.width = W * scale; canvas.height = H * scale; const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.drawImage(tmp, 0, 0, W * scale, H * scale);
+
+  /* ---------- poses: cut ROT into parts at the joints and re-pose it (paper-puppet style) ---------- */
+  // Angles in degrees, clockwise on screen. 0 = the standing pose. Arms/legs: U upper, F forearm, T thigh, S shin.
+  // L = the arm/leg on the viewer's left. root: where the hips go in the 280x360 pose canvas, and the whole-body tilt.
+  const POSES = {
+    stand:   { name: "standing", root: [140, 196, 0] },
+    loom:    { name: "looming", root: [140, 186, 0], torso: 6, head: -6, LU: 12, LF: -18, RU: -14, RF: 22, LT: 6, LS: 10, RT: -4, RS: 24 },
+    crossed: { name: "arms crossed", root: [140, 190, 0], torso: -3, head: -8, LU: 6, LF: -100, RU: -6, RF: 96, LT: 4, LS: 6, RT: -10, RS: 30 },
+    point:   { name: "pointing", root: [140, 192, -4], torso: -6, head: 8, LU: 28, LF: -118, RU: -96, RF: -6, LT: 8, LS: 0, RT: -14, RS: 10 },
+    punch:   { name: "punch", root: [150, 196, 6], torso: 10, head: 4, LU: 96, LF: 4, RU: -44, RF: 118, LT: 22, LS: -4, RT: -20, RS: 14 },
+    flex:    { name: "flex", root: [140, 196, 0], torso: 0, head: 0, LU: 86, LF: 96, RU: -86, RF: -96, LT: 6, LS: 0, RT: -6, RS: 0 },
+    menace:  { name: "arms up", root: [140, 200, 0], torso: 0, head: -12, LU: 128, LF: 24, RU: -128, RF: -24, LT: 10, LS: 6, RT: -10, RS: -6 },
+    reach:   { name: "reaching down", root: [130, 176, 18], torso: 14, head: 14, LU: 28, LF: 18, RU: -30, RF: -70, LT: 10, LS: 30, RT: -2, RS: 40 },
+    face:    { name: "hand to face", root: [142, 196, -6], torso: -10, head: 12, LU: -22, LF: -146, RU: 18, RF: 8, LT: 14, LS: -4, RT: -6, RS: 6 },
+    salute:  { name: "hand up", root: [140, 198, 4], torso: 4, head: -6, LU: 12, LF: 4, RU: -164, RF: -24, LT: 4, LS: 0, RT: -12, RS: 18 },
+    kick:    { name: "kick", root: [150, 200, -10], torso: -12, head: 8, LU: 62, LF: 30, RU: -40, RF: -40, LT: 4, LS: 4, RT: -84, RS: -6 },
+    crouch:  { name: "crouch", root: [140, 236, 0], torso: 10, head: -14, LU: 22, LF: -40, RU: -22, RF: 40, LT: 58, LS: -92, RT: -58, RS: 92 },
+    hand:    { name: "handstand", root: [140, 150, 180], torso: 0, head: 10, LU: 6, LF: 0, RU: -6, RF: 0, LT: 34, LS: -20, RT: -30, RS: 50 },
+    dive:    { name: "diving", root: [172, 190, -62], torso: -6, head: -14, LU: 150, LF: 10, RU: 168, RF: -6, LT: 6, LS: 22, RT: 12, RS: 36 },
+  };
+  function posed(G, pose, body) {
+    const P = typeof pose === "string" ? (POSES[pose] || POSES.stand) : pose;
+    const sx = body?.sx || 1, sy = body?.sy || 1, T = (x, y) => [x * sx + 80 * (1 - sx), y * sy + 268 * (1 - sy)];
+    const src = G.cv, sd = G.c.getImageData(0, 0, W, H).data;
+    const grey = (x, y) => { x = Math.max(0, Math.min(W - 1, Math.round(x))); y = Math.max(0, Math.min(H - 1, Math.round(y))); const i = (y * W + x) * 4; return sd[i + 3] > 110 ? sd[i] : null };
+    const rigid = !!(G.flags.longLow);
+    // parts: clip polygon (standing coords) and pivot; parent pivots are where children attach
+    const R = {
+      torso: { poly: [[54.5, 52], [105.5, 52], [105.5, 152], [54.5, 152]], piv: [80, 146] },
+      head:  { poly: [[0, -20], [160, -20], [160, 61], [0, 61]], piv: [80, 60], parent: "torso" },
+      LU: { poly: [[0, 56], [54.5, 56], [54.5, 106], [0, 106]], piv: [51, 68], parent: "torso" },
+      LF: { poly: [[0, 106], [54.5, 106], [54.5, 162], [0, 162]], piv: [47, 106], parent: "LU" },
+      RU: { poly: [[105.5, 56], [160, 56], [160, 106], [105.5, 106]], piv: [109, 68], parent: "torso" },
+      RF: { poly: [[105.5, 106], [160, 106], [160, 190], [112, 190], [112, 162], [105.5, 162]], piv: [113, 106], parent: "RU" },
+      LT: { poly: [[54.5, 152], [80, 152], [80, 202], [20, 202], [20, 162], [54.5, 162]], piv: [69, 150], parent: "torso" },
+      LS: { poly: [[20, 202], [80, 202], [80, 290], [20, 290]], piv: [68, 202], parent: "LT" },
+      RT: { poly: [[80, 152], [105.5, 152], [105.5, 162], [112, 162], [112, 190], [140, 190], [140, 202], [80, 202]], piv: [91, 150], parent: "torso" },
+      RS: { poly: [[80, 202], [140, 202], [140, 290], [80, 290]], piv: [92, 202], parent: "RT" },
+      LOW: { poly: [[54.5, 152], [105.5, 152], [105.5, 162], [112, 162], [112, 190], [160, 190], [160, 290], [0, 290], [0, 162], [54.5, 162]], piv: [80, 150], parent: "torso" },
+    };
+    const order = rigid ? ["LOW", "torso", "head", "LU", "LF", "RU", "RF"] : ["LT", "LS", "RT", "RS", "torso", "head", "LU", "LF", "RU", "RF"];
+    const ang = { torso: (P.root?.[2] || 0) + (P.torso || 0), head: P.head || 0, LU: P.LU || 0, LF: P.LF || 0, RU: P.RU || 0, RF: P.RF || 0, LT: P.LT || 0, LS: P.LS || 0, RT: P.RT || 0, RS: P.RS || 0, LOW: ((P.LT || 0) + (P.RT || 0)) * 0.3 };
+    // forward kinematics: absolute transform of each part
+    const M = {}, mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+    const rotAbout = (deg, [px, py]) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return [c, s, -s, c, px - c * px + s * py, py - s * px - c * py] };
+    const app = (m, [x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+    const [rx, ry] = P.root || [140, 196], tp = T(...R.torso.piv);
+    M.torso = mul([1, 0, 0, 1, rx - tp[0], ry - tp[1]], rotAbout(ang.torso, tp));
+    for (const k of ["head", "LU", "RU", "LT", "RT", "LOW", "LF", "RF", "LS", "RS"]) { const par = M[R[k].parent]; M[k] = mul(par, rotAbout(ang[k], T(...R[k].piv))) }
+    const PW = 280, PH = 360, cv = document.createElement("canvas"); cv.width = PW; cv.height = PH; const c = cv.getContext("2d");
+    for (const k of order) {
+      const part = R[k], m = M[k], pv = T(...part.piv), g = grey(pv[0], pv[1] + (k === "head" ? 2 : 0));
+      if (k !== "torso" && g != null) { const [jx, jy] = app(m, pv); c.fillStyle = `rgb(${g},${g},${g})`; c.beginPath(); c.arc(jx, jy, k[1] === "U" ? 6 : k === "head" ? 6 : 7, 0, Math.PI * 2); c.fill() }
+      c.save(); c.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]); c.beginPath(); part.poly.forEach(([x, y], i) => { const [a, b] = T(x, y); i ? c.lineTo(a, b) : c.moveTo(a, b) }); c.closePath(); c.clip(); c.drawImage(src, 0, 0); c.restore();
+    }
+    // accent pixels (eyes, zips) move with their part
+    const inPoly = (poly, x, y) => { let o = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = T(...poly[i]), [xj, yj] = T(...poly[j]); if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) o = !o } return o };
+    const glints = []; for (const [x, y] of G.glints) { const k = [...order].reverse().find(k => inPoly(R[k].poly, x, y)); if (k) { const [a, b] = app(M[k], [x, y]); glints.push([Math.round(a), Math.round(b)]) } }
+    return { cv, c, glints, flags: G.flags };
+  }
+  function render(canvas, outfit, { scale = 2, seed = 1, glitch = true, body = null, cutout = false, pose = null } = {}) {
+    let G = ctx(body); drawOutfit(G, outfit.layers);
+    if (pose) G = posed(G, pose, body);
+    const img = dither(G, PALETTES[outfit.style] || PALETTES.streetwear, { seed, glitch, pile: G.flags.pile, cutout: cutout || !!pose });
+    const w = G.cv.width, h = G.cv.height;
+    const tmp = document.createElement("canvas"); tmp.width = w; tmp.height = h; tmp.getContext("2d").putImageData(img, 0, 0);
+    canvas.width = w * scale; canvas.height = h * scale; const c = canvas.getContext("2d"); c.imageSmoothingEnabled = false; c.clearRect(0, 0, w * scale, h * scale); c.drawImage(tmp, 0, 0, w * scale, h * scale);
     return canvas;
   }
 
-  window.ROT = { W, H, PALETTES, KITS, EXTRAS, LAYER, SLOT, toneOf, matchPiece, outfitFor, outfitFromItems, variant, render, kit: (style) => ({ style, layers: KITS[style] || KITS.streetwear }) };
+  window.ROT = { W, H, POSES, PALETTES, KITS, EXTRAS, LAYER, SLOT, toneOf, matchPiece, outfitFor, outfitFromItems, variant, render, kit: (style) => ({ style, layers: KITS[style] || KITS.streetwear }) };
 })();

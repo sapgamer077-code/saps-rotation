@@ -284,6 +284,22 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .trip-day .chat-fit{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:6px}
 .trip-day .chat-fit img{width:100%;aspect-ratio:1;object-fit:cover}
 .trip-day .chat-fit figcaption,.trip-day .chat-fit .cap{display:none}
+#stand{z-index:20;padding:calc(10px + env(safe-area-inset-top,0px)) 10px calc(10px + env(safe-area-inset-bottom,0px))}
+.stand-panel{display:flex;flex-direction:column;gap:10px;padding:12px}
+.st-stage{position:relative;background:var(--ink);display:flex;align-items:center;justify-content:center;min-height:300px}
+.st-stage canvas{max-width:100%;max-height:62dvh;display:block;touch-action:none}
+.st-stage canvas:not(.on){display:none}
+.st-pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;background:var(--surface);border:2px dashed var(--ink)}
+.st-pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.st-pick[hidden]{display:none}
+.st-hint{margin:0;font-size:.85rem}
+.st-controls{display:flex;flex-direction:column;gap:10px}
+.st-controls input[type=range]{width:100%}
+.st-controls .field{flex:none}
+.st-poses{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.st-poses button{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1.5px solid var(--line);background:var(--surface);font:500 .65rem var(--mono);color:var(--ink);cursor:pointer}
+.st-poses button[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.st-poses canvas{width:56px;height:72px;image-rendering:pixelated}
 .b-more{grid-column:1/-1;margin:10px 0 4px}
 .wear-box{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1.5px dashed var(--ink);padding:8px 10px}
 .wear-stat{margin:0;font:500 .85rem/1.4 var(--mono)}
@@ -363,7 +379,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-4">
+<link rel="stylesheet" href="theme.css?v=20261001-6">
 </head>
 <body>
 
@@ -517,6 +533,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <h2>ROT, dressed as you</h2>
         <div class="rot-stage"><canvas id="you-rot" width="320" height="560" aria-label="ROT wearing your closet"></canvas></div>
         <p class="rot-inline" id="you-rot-note"></p>
+        <button class="btn" id="you-stand" style="align-self:flex-start">Put ROT in a fit pic</button>
         <p class="muted" style="font-size:.9rem">ROT wears your main style's pieces from your closet, then swaps in what keeps showing up in your pins. Its build follows your height and build as you change them.</p>
       </div>
     </div>
@@ -665,6 +682,30 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
     <div class="row" style="justify-content:flex-end"><button type="submit" class="btn" id="swf-go">Add to the deck</button></div>
   </form>
 </div>
+<div class="sheet" id="stand" hidden>
+  <div class="panel stand-panel" role="dialog" aria-labelledby="st-title">
+    <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><h2 id="st-title">ROT in your pic</h2><button type="button" class="btn ghost small" id="st-close">Close</button></div>
+    <div class="st-stage" id="st-stage">
+      <canvas id="st-cv" aria-label="Your photo with ROT"></canvas>
+      <label class="st-pick" id="st-pick"><span class="rot-line">take a fit pic, or pick one. full body works best.</span><span class="btn">Take or choose a photo</span><input type="file" id="st-file" accept="image/*"></label>
+    </div>
+    <p class="muted st-hint" id="st-hint" hidden>Drag ROT to move it. Use the slider to resize.</p>
+    <div class="st-controls" id="st-controls" hidden>
+      <div class="field"><span class="label">Pose</span><div class="st-poses" id="st-poses"></div></div>
+      <div class="field"><label class="label" for="st-size">Size</label><input type="range" id="st-size" min="25" max="150" value="92"></div>
+      <div class="row tight" style="gap:6px">
+        <label class="chip"><input type="checkbox" id="st-behind" checked>Behind me</label>
+        <label class="chip"><input type="checkbox" id="st-aura" checked>Aura</label>
+        <label class="chip"><input type="checkbox" id="st-flip">Flip</label>
+        <button type="button" class="btn ghost small" id="st-glitch">Glitch</button>
+        <label class="btn ghost small" style="position:relative">New photo<input type="file" id="st-file2" accept="image/*" style="position:absolute;inset:0;opacity:0"></label>
+      </div>
+      <p class="status" id="st-status" aria-live="polite"></p>
+      <p class="rot-line" id="st-verdict" hidden></p>
+      <div class="row" style="gap:8px"><button class="btn" id="st-share">Save or share</button><button class="btn ghost" id="st-rate" hidden>ROT's verdict</button></div>
+    </div>
+  </div>
+</div>
 <div class="sheet" id="brandsheet" hidden>
   <form class="panel" id="bf" autocomplete="off">
     <div class="row" style="justify-content:space-between;align-items:center"><h2>Add a brand</h2><button type="button" class="btn ghost small" id="bf-close">Close</button></div>
@@ -685,12 +726,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-4"></script>
-<script src="supabase.js?v=20261001-4"></script>
-<script src="platform.js?v=20261001-4"></script>
-<script src="catalog.js?v=20261001-4"></script>
-<script src="size.js?v=20261001-4"></script>
-<script src="rot.js?v=20261001-4"></script>
-<script src="app.js?v=20261001-4"></script>
+<script src="config.js?v=20261001-6"></script>
+<script src="supabase.js?v=20261001-6"></script>
+<script src="platform.js?v=20261001-6"></script>
+<script src="catalog.js?v=20261001-6"></script>
+<script src="size.js?v=20261001-6"></script>
+<script src="rot.js?v=20261001-6"></script>
+<script src="app.js?v=20261001-6"></script>
 </body>
 </html>
