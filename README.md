@@ -10,6 +10,11 @@ A closet app anyone can use: daily fits from what you own, a next-buys list that
 - **Optional Gemini.** With a free Gemini key, *Personalize with Gemini* adds brands picked just for them (including ones outside the catalog), and Next buys, inspo reading and photo tagging turn on.
 - **Measurements & sizes.** In *You*, chest, waist, hips, inseam and shoe size become sizes in US, UK, EU, Japanese and Korean sizing. *Sizes that fit you* records brands they own and how they fit, and Next buys uses both.
 - **Trending.** Optional collectors (see `COLLECTORS.md`) count brand mentions on fashion blogs and newsletters and track Instagram follower growth, shown to everyone under *Brands → Trending this week*.
+- **Wear tracking.** "Wore this" on any fit or piece logs it. The closet shows wear counts, cost per wear and what's been sitting longest, and the fit maker rotates toward idle pieces.
+- **Swipe deck.** Real products from links people paste (read like a link preview). Likes count like pins in Next buys. Setup in `COLLECTORS.md`.
+- **Trip packing.** City, dates and plans become one outfit per day and a packing list, from the forecast (or last year's weather if it's too far out).
+- **ROT.** Tap ROT to chat. With Gemini it answers anything about your clothes and can save fits, log wears, add wants and mark the wash when you tap to confirm.
+- **Share a fit.** Makes an image card of the fit for the share sheet.
 - **Next buys.** Without AI it ranks pieces from their styles by tagged pins (newer pins count more), their want-more-of list, their budget and what their closet unlocks. With Gemini it builds the list from their pins and closet.
 
 ## Supabase settings for a shared app
@@ -26,7 +31,7 @@ A closet app anyone can use: daily fits from what you own, a next-buys list that
 - `catalog.js` — style library, wardrobe pieces, the shared brand catalog and country/region tables
 - `size.js` — size charts and conversions
 - `brandmatch.json` — how the collectors recognize each brand in post titles
-- `supabase/` — collector tables, the `collect` Edge Function and its schedule (setup in `COLLECTORS.md`)
+- `supabase/` — collector tables, the `collect` and `product` Edge Functions and the schedule (setup in `COLLECTORS.md`)
 - `platform.js` — on-device storage, Supabase sync and accounts, photo storage, optional Gemini
 - `config.js` — the Supabase project URL and publishable key (public by design)
 - `sw.js`, `manifest.webmanifest`, `*.png` — offline support and home-screen install

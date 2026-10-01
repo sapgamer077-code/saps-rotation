@@ -53,3 +53,12 @@ It checks up to 150 accounts per run, which stays inside Meta's free limit.
 ## Brands people suggest
 
 When someone adds a brand in the app that isn't in the list, it lands in **Table Editor → brand_suggestions**. Tick **approved** and fix the details if needed (`cc` is the 2-letter country code). Approved brands show up for every user and the collectors start counting their mentions.
+
+## Swipe deck (real products)
+
+The swipe deck in **Next buys** shows real products that anyone using the app adds by pasting product links. Rotation reads each page's name, photo and price the way a messaging app makes a link preview. One page per link someone pastes, no crawling.
+
+1. **SQL Editor:** paste all of `supabase/products.sql` → **Run**.
+2. **Edge Functions → Deploy a new function → Via Editor:** name it `product`, paste all of `supabase/functions/product/index.ts`, **Deploy**. Leave **Verify JWT on** for this one, since only signed-in people should add products.
+
+That's it, no new secrets. To pull a product from everyone's deck, tick **hidden** on its row in **Table Editor → products**.

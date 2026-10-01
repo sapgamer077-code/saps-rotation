@@ -2,7 +2,7 @@
 
 const CATS=[["top","Tee / shirt"],["mid","Hoodie / knit"],["outer","Jacket / coat"],["bottom","Pants / shorts"],["shoes","Shoes"],["acc","Accessory"]];
 const CATNAME=Object.fromEntries(CATS);
-const S={items:[],inspo:[],fits:[],feedback:[],marks:[],gapfb:[],mybrands:[],fitref:[],sizes:null,trends:null,pool:[],ai:null,prefs:null,loaded:false,profile:null,gaps:null,body:null,filter:"all",tab:null,recreate:null,editing:null,pending:{flat:null,body:null},lastFits:[]};
+const S={items:[],inspo:[],fits:[],feedback:[],marks:[],gapfb:[],mybrands:[],wears:[],swipes:[],fitref:[],sizes:null,trends:null,pool:[],ai:null,prefs:null,loaded:false,profile:null,gaps:null,body:null,filter:"all",tab:null,recreate:null,editing:null,pending:{flat:null,body:null},lastFits:[]};
 let db=null,assets=null,sample=null,imgMax=0,ctl=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -26,7 +26,7 @@ function sampleErr(e){const c=e&&e.code;return c==="bad_key"||c==="not_granted"?
 function setTab(t){const prev=S.tab;S.tab=t;for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",b.dataset.tab===t);
   for(const v of ["make","closet","buys","brands","inspo","you","saved"])$("view-"+v).hidden=v!==t;
   if(t==="brands")renderBrands();if(t==="buys")maybeAutoRefresh();
-  if(t==="you")openYou();else if(prev==="you")closeYou();if(prev!==t&&typeof sayNow==="function")sayNow(true);}
+  if(t==="you")openYou();else if(prev==="you")closeYou();if(prev!==t&&typeof sayNow==="function")sayNow(true);if(t==="buys"&&typeof loadProducts==="function")loadProducts().then(renderLikes);}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 
 /* ---------- closet ---------- */
@@ -40,14 +40,14 @@ function renderFilters(){const opts=[["all","All"],...CATS.map(([v,l])=>[v,l.spl
   $("c-filters").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.filter=b.dataset.f;renderCloset()});}
 function tagCard(it){return `<button class="tagcard${it.wash?" wash":""}" data-id="${esc(it.id)}"><span class="hole"></span>${it.wash?'<span class="flag">In wash</span>':""}${it.body?'<span class="bodydot">On-body ✓</span>':""}
   <span class="ph duo">${it.flat?`<img src="${src(it.flat)}" alt="" loading="lazy">`:it.body?`<img src="${src(it.body)}" alt="" loading="lazy">`:`<span class="none">No photo yet</span>`}</span>
-  <span class="meta"><span class="label">${esc(CATNAME[it.cat]||it.cat)} · ${esc(it.sil)} · ${esc(it.len)}</span><span class="name">${esc(it.name)}</span><span class="muted" style="font-size:.85rem">${esc(it.color||"")}</span></span></button>`}
+  <span class="meta"><span class="label">${esc(CATNAME[it.cat]||it.cat)} · ${esc(it.sil)} · ${esc(it.len)}</span><span class="name">${esc(it.name)}</span><span class="muted" style="font-size:.85rem">${esc(it.color||"")}</span>${wornLabel(it)}</span></button>`}
 function renderCloset(){renderFilters();$("n-closet").textContent=S.items.length;
   const box=$("c-body");
   if(!S.items.length){box.innerHTML=`<div class="empty"><h3>Your closet is empty</h3><p>Add each piece with a photo. The tags and "how it fits you" notes are what the fit maker reasons from, so it's worth a few seconds per item.</p>
     <p class="label">Photo tips</p><ul><li>Flat-lay on a bed or floor, or on a hanger against a plain wall. Daylight from a window, no flash.</li>
     <li>No full-length mirror? Prop your phone at waist height, use the 10-second timer, and stand 6–8 ft back.</li>
     <li>On-body shots matter most for pants, jackets, and anything cropped or oversized.</li></ul></div>`;return}
-  const list=S.items.filter(i=>S.filter==="all"?true:S.filter==="wash"?i.wash:i.cat===S.filter);
+  renderReport();const list=sortCloset(S.items.filter(i=>S.filter==="all"?true:S.filter==="wash"?i.wash:i.cat===S.filter));
   box.innerHTML=list.length?`<div class="grid">${list.map(tagCard).join("")}</div>`:`<p class="muted">Nothing here yet.</p>`;
   box.querySelectorAll(".tagcard").forEach(b=>b.onclick=()=>openSheet(S.items.find(i=>i.id===b.dataset.id)));}
 
@@ -61,9 +61,10 @@ function openSheet(it){S.editing=it||null;S.pending={flat:null,body:null};$("f")
   $("f-title").textContent=it?"Edit piece":"Add a piece";$("f-del").hidden=!it;$("f-del").textContent="Delete piece";$("f-del").dataset.arm="";
   $("f-status").textContent="";
   if(it){$("f-name").value=it.name||"";$("f-cat").value=it.cat||"top";$("f-color").value=it.color||"";$("f-sil").value=it.sil||"regular";
-    $("f-len").value=it.len||"regular";$("f-warm").value=String(it.warmth||2);$("f-fit").value=it.fitNotes||"";$("f-notes").value=it.notes||"";$("f-wash").checked=!!it.wash;
+    $("f-len").value=it.len||"regular";$("f-warm").value=String(it.warmth||2);$("f-fit").value=it.fitNotes||"";$("f-notes").value=it.notes||"";$("f-wash").checked=!!it.wash;$("f-brand").value=it.brand||"";$("f-price").value=it.price||"";
     FORMV.forEach(v=>$("fv-"+v).checked=(it.vibes||[]).includes(v));}
   setPreview("flat",it?.flat&&src(it.flat));setPreview("body",it?.body&&src(it.body));
+  $("f-wear").hidden=!it;if(it){$("f-wear-stat").textContent=wearStatText(it);$("f-wore").textContent=wornToday([it.id])?"Logged today ✓":"Wore it today"}
   $("f-auto").hidden=!sample;$("sheet").hidden=false;}
 $("c-add").onclick=()=>openSheet(null);
 $("f-close").onclick=()=>$("sheet").hidden=true;
@@ -96,7 +97,7 @@ Reply with only a JSON object:
 $("f").onsubmit=async e=>{e.preventDefault();if(!db){toast("Can't save in this view.");return}
   const btn=$("f-save");btn.disabled=true;btn.textContent="Saving…";
   try{const it=S.editing||{};const data={name:$("f-name").value.trim(),cat:$("f-cat").value,color:$("f-color").value.trim(),sil:$("f-sil").value,len:$("f-len").value,
-      warmth:+$("f-warm").value,vibes:FORMV.filter(v=>$("fv-"+v).checked),fitNotes:$("f-fit").value.trim(),notes:$("f-notes").value.trim(),wash:$("f-wash").checked,
+      warmth:+$("f-warm").value,vibes:FORMV.filter(v=>$("fv-"+v).checked),fitNotes:$("f-fit").value.trim(),notes:$("f-notes").value.trim(),wash:$("f-wash").checked,brand:$("f-brand").value.trim(),price:+$("f-price").value||0,
       flat:it.flat||null,body:it.body||null,created:it.created||Date.now()};
     for(const k of ["flat","body"])if(S.pending[k]){if(!assets)throw{msg:"Photo uploads aren't available in this view."};const up=await assets.upload(S.pending[k],{type:"image/jpeg"});data[k]=up.id;}
     const ref=it.id?db.doc("items/"+it.id):db.collection("items").doc();await ref.set(data);
@@ -131,7 +132,7 @@ $("i-file").onchange=async e=>{const files=[...e.target.files];e.target.value=""
   $("i-status").textContent=`Adding ${files.length} image${files.length>1?"s":""}…`;
   for(const f of files){try{const up=await assets.upload(await shrink(f,1400),{type:"image/jpeg"});await db.collection("inspo").doc().set({img:up.id,created:Date.now()})}catch{toast("One image didn't upload.")}}
   $("i-status").textContent="";};
-function closetText(items){return items.map(i=>`${i.id} | ${i.name} | ${CATNAME[i.cat]||i.cat} | ${i.color} | ${i.sil}, ${i.len} | warmth ${i.warmth} | vibes: ${(i.vibes||[]).join("/")||"-"}${i.fitNotes?` | fit on them: ${i.fitNotes}`:""}${i.notes?` | note: ${i.notes}`:""}`).join("\n")}
+function closetText(items){return items.map(i=>`${i.id} | ${i.name} | ${CATNAME[i.cat]||i.cat} | ${i.color} | ${i.sil}, ${i.len} | warmth ${i.warmth} | vibes: ${(i.vibes||[]).join("/")||"-"}${i.fitNotes?` | fit on them: ${i.fitNotes}`:""}${i.notes?` | note: ${i.notes}`:""}${typeof wearOf==="function"&&S.wears.length?(w=>` | worn ${w.n}x${w.n?`, last ${w.since}d ago`:""}`)(wearOf(i)):""}`).join("\n")}
 async function readInspo(){
   const pick=S.inspo.slice(0,imgMax||20);
   const pairs=(await Promise.all(pick.map(async p=>[p,await blobFor(p.img)]))).filter(x=>x[1]);const blobs=pairs.map(x=>x[1]);
@@ -170,13 +171,15 @@ function fitCard(f,i,mode){const voted=f.vote;return `<article class="fit"><div 
   <div class="fitgrid">${boardHTML(f.items)}<div class="fit-detail">${piecesHTML(f.items)}
   ${f.why?`<p class="rot-line">${esc(f.why.charAt(0).toLowerCase()+f.why.slice(1))}</p>`:""}${f.proportion?`<p class="muted" style="font-size:.92rem"><span class="label">Proportion</span> ${esc(f.proportion)}</p>`:""}
   ${f.missing?`<p class="muted" style="font-size:.92rem"><span class="label">Missing vs. inspo</span> ${esc(f.missing)}</p>`:""}
-  <button class="btn ghost small" style="align-self:flex-start" data-mq="${mode==="new"?i:esc(f.id)}">ROT tries it on</button></div></div>
-  ${mode==="new"?`<div class="votes"><button class="btn ghost small ${voted===1?"voted-up":""}" data-v="1" data-i="${i}">Good fit</button><button class="btn ghost small ${voted===-1?"voted-down":""}" data-v="-1" data-i="${i}">Not it</button><button class="btn ghost small" data-save="${i}">${f.saved?"Saved":"Save"}</button></div>`
-  :`<div class="votes"><button class="btn ghost small" data-unsave="${esc(f.id)}">Remove</button></div>`}</article>`}
+  <div class="row" style="gap:6px"><button class="btn ghost small" data-mq="${mode==="new"?i:esc(f.id)}">ROT tries it on</button><button class="btn ghost small" data-share="${mode==="new"?i:esc(f.id)}">Share</button></div></div></div>
+  ${mode==="new"?`<div class="votes"><button class="btn ghost small ${voted===1?"voted-up":""}" data-v="1" data-i="${i}">Good fit</button><button class="btn ghost small ${voted===-1?"voted-down":""}" data-v="-1" data-i="${i}">Not it</button><button class="btn ghost small" data-save="${i}">${f.saved?"Saved":"Save"}</button><button class="btn ghost small${wornToday(f.items)?" voted-wore":""}" data-wore="${i}">${wornToday(f.items)?"Wore it ✓":"Wore this"}</button></div>`
+  :`<div class="votes"><button class="btn ghost small${wornToday(f.items)?" voted-wore":""}" data-wores="${esc(f.id)}">${wornToday(f.items)?"Wore it ✓":"Wore this"}</button><button class="btn ghost small" data-unsave="${esc(f.id)}">Remove</button></div>`}</article>`}
 function renderFits(){if(typeof sayNow==="function")sayNow();const o=$("m-out");o.innerHTML=S.lastFits.map((f,i)=>fitCard(f,i,"new")).join("");
   o.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.mq];openMannequin(f.items,f.title,f.vibe)});
   o.querySelectorAll("[data-v]").forEach(b=>b.onclick=async()=>{const f=S.lastFits[+b.dataset.i];f.vote=+b.dataset.v;renderFits();
     if(db)try{await db.doc("feedback/"+f.key).set({title:f.title,items:f.items,vote:f.vote,at:Date.now()})}catch{}});
+  o.querySelectorAll("[data-share]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.share];shareFit(f.items,f.title,f.why,f.vibe)});
+  o.querySelectorAll("[data-wore]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.wore];logWear(f.items,f.title)});
   o.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{const f=S.lastFits[+b.dataset.save];if(f.saved||!db)return;
     try{await db.doc("fits/"+f.key).set({title:f.title,items:f.items,why:f.why||"",proportion:f.proportion||"",vibe:f.vibe||"",at:Date.now()});f.saved=true;renderFits();toast("Saved")}catch{toast("Couldn't save.")}});}
 function fallbackFits(pool,temp,wx,vibe){
@@ -223,6 +226,8 @@ function fallbackFits(pool,temp,wx,vibe){
     if(cols.filter(c=>/black/.test(c)).length>=4)sc-=1;
     if(cols.some(c=>/khaki|tan|sand|wheat/.test(c))&&cols.some(c=>/light|bleach/.test(c)))sc+=0.5;
     const ids=[t,m,o,b,sh].filter(Boolean).map(i=>i.id);
+    if(S.wears.length){for(const it of [t,m,o,b,sh].filter(Boolean)){const w=wearOf(it);if(w.since>=21)sc+=0.6;else if(w.since<=1&&w.n)sc-=0.8}
+      const idle=[t,m,o,b].filter(Boolean).find(it=>wearOf(it).since>=21);if(idle&&!why.some(x=>/sitting/.test(x)))why.push(`your ${idle.name.toLowerCase()} has been sitting ${wearOf(idle).since} days`)}
     for(const L of liked){const ov=ids.filter(x=>L.includes(x)).length;if(ov>=3)sc+=1.5;}
     for(const N of nope){const ov=ids.filter(x=>N.includes(x)).length;if(ov>=3)sc-=3;}
     if(needOuter&&o)why.push(heavy?"the down jacket handles the cold":"a light jacket for "+(wet?wx.toLowerCase():temp+"°F"));
@@ -401,7 +406,8 @@ function sizeFor(p){const z=S.prefs?.sizes||{};const typed=p.cat==="bottom"?z.bo
 function tagCounts(){const c={};S.inspo.forEach(p=>(p.tags||[]).forEach(k=>c[k]=(c[k]||0)+1));return c}
 // Newer pins count more (oldest ×0.75 → newest ×1.5), so the list follows where their taste is heading.
 function tagWeights(){const w={};const byAge=[...S.inspo].filter(p=>(p.tags||[]).length).sort((a,b)=>(a.created||0)-(b.created||0));const n=byAge.length;
-  byAge.forEach((p,i)=>{const f=n>1?.75+.75*i/(n-1):1;p.tags.forEach(k=>w[k]=(w[k]||0)+f)});return w}
+  byAge.forEach((p,i)=>{const f=n>1?.75+.75*i/(n-1):1;p.tags.forEach(k=>w[k]=(w[k]||0)+f)});
+  for(const s of S.swipes)if(s.piece)w[s.piece]=(w[s.piece]||0)+(s.v===1?1:-0.3);return w}
 function ownsPiece(p){return S.items.some(i=>i.cat===p.cat&&p.re.test(((i.name||"")+" "+(i.notes||"")+" "+(i.color||"")).toLowerCase()))}
 function ruleGaps(){
   const pins=tagCounts(),wts=tagWeights(),tagged=S.inspo.filter(p=>(p.tags||[]).length).length,keys=userStyles();
@@ -641,7 +647,7 @@ function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase
   const wornItem=worn&&S.items.find(i=>{const p=PIECE[worn.k];return p&&i.cat===p.cat&&p.re.test(((i.name||"")+" "+(i.notes||"")).toLowerCase())});
   if(t==="make"){if(n<3)return "i need a top, bottoms and shoes before i can dress you.";if(S.lastFits.length)return "rate them. i learn from every tap.";
     return `${$("m-temp").value||60}° and ${($("m-wx").value||"clear").toLowerCase()}. want three fits?`}
-  if(t==="closet"){if(!n)return "empty closet. add a piece and i'll start wearing it.";return `${n} pieces. mostly ${st}.${wornItem?` wearing your ${wornItem.name.toLowerCase()} right now.`:""}`}
+  if(t==="closet"){if(!n)return "empty closet. add a piece and i'll start wearing it.";const idl=typeof idlePieces==="function"?idlePieces(1)[0]:null;if(idl)return `${idl.i.name.toLowerCase()}: ${idl.w.since} days untouched. wear it or let it go.`;return `${n} pieces. mostly ${st}.${wornItem?` wearing your ${wornItem.name.toLowerCase()} right now.`:""}`}
   if(t==="buys"){const g=liveGaps()[0];return g?`${g.item.toLowerCase()}. that's the gap.`:"tag the pieces in your pins and i'll find what's missing."}
   if(t==="brands")return `${myAtlas().length} brands for ${userStyles().map(k=>styleName(k).toLowerCase()).join(", ")}. hide what isn't you.`;
   if(t==="inspo"){const c=tagCounts(),top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];if(!S.inspo.length)return "drop screenshots here. i read what you save.";
@@ -792,14 +798,26 @@ function renderChat(){const L=$("chat-log");
   L.innerHTML=CHAT.msgs.map((m,i)=>{if(m.who==="me")return `<div class="msg me">${esc(m.text)}</div>`;
     const items=(m.items||[]).filter(id=>S.items.some(x=>x.id===id));
     const brands=(m.brands||[]).map(n=>findBrand(n)).filter(Boolean);
-    return `<div class="msg rot">${esc(m.text)}${items.length?`<div class="chat-fit">${fitItems(items).map(x=>cell(x)).join("")}</div>${piecesHTML(items)}<button class="btn ghost small" style="margin-top:6px" data-chatmq="${i}">ROT tries it on</button>`:""}${brands.length?`<div class="chat-brands">${brands.map(r=>`<button class="brand" data-cb="${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}</div>`}).join("")+
+    return `<div class="msg rot">${esc(m.text)}${items.length?`<div class="chat-fit">${fitItems(items).map(x=>cell(x)).join("")}</div>${piecesHTML(items)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn ghost small" data-chatmq="${i}">ROT tries it on</button><button class="btn ghost small" data-chatshare="${i}">Share</button></div>`:""}${brands.length?`<div class="chat-brands">${brands.map(r=>`<button class="brand" data-cb="${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}${actsHTML(m,i)}</div>`}).join("")+
     (CHAT.busy?`<div class="msg rot typing">thinking…</div>`:"");
   L.querySelectorAll("[data-chatmq]").forEach(b=>b.onclick=()=>{const m=CHAT.msgs[+b.dataset.chatmq];closeChat();openMannequin(m.items,"ROT's pick","")});
+  L.querySelectorAll("[data-chatshare]").forEach(b=>b.onclick=()=>{const m=CHAT.msgs[+b.dataset.chatshare];shareFit(m.items,"rot's pick",m.text,"")});
+  L.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{const [mi,ai]=b.dataset.act.split(":").map(Number);runAct(CHAT.msgs[mi],ai)});
   L.querySelectorAll("[data-cb]").forEach(b=>b.onclick=()=>{closeChat();goBrands("all",null,b.dataset.cb)});
   L.scrollTop=L.scrollHeight;
   const chips=["what should i wear today","what should i buy next","what's my size in japanese brands","which of my pieces go together least"];
   $("chat-chips").innerHTML=chips.map(c=>`<button type="button" class="btn ghost small" data-chip="${esc(c)}">${esc(c)}</button>`).join("");
   $("chat-chips").querySelectorAll("[data-chip]").forEach(b=>b.onclick=()=>sendChat(b.dataset.chip))}
+const ACT_LABEL={save_fit:"Save this fit",wore:"Wore this today",want:"Add to want list",wash:"Mark in the wash",unwash:"Out of the wash"};
+function actsHTML(m,i){const a=(m.acts||[]);if(!a.length)return "";
+  return `<div class="chat-acts">${a.map((x,k)=>{const label=x.t==="want"?`Want ${x.brand}`:ACT_LABEL[x.t]||x.t;return x.done?`<span class="act-done">✓ ${esc(x.doneText||label)}</span>`:`<button class="btn small" data-act="${i}:${k}">${esc(label)}</button>`}).join("")}</div>`}
+async function runAct(m,k){const a=m?.acts?.[k];if(!a||a.done||!db)return;const ids=m.items||[];
+  try{if(a.t==="save_fit"){await db.doc("fits/c"+Date.now()).set({title:"ROT's pick",items:ids,why:m.text.slice(0,240),proportion:"",vibe:"",at:Date.now()});a.doneText="Saved to Saved fits"}
+    else if(a.t==="wore"){if(!wornToday(ids))await logWear(ids,"ROT's pick");a.doneText="Logged as worn today"}
+    else if(a.t==="want"){const b=findBrand(a.brand);const name=b?.b||a.brand;await db.doc("brandmarks/"+brandKey(name)).set({brand:name,mark:"want",at:Date.now()});a.doneText=`${name} is on your want list`}
+    else if(a.t==="wash"||a.t==="unwash"){for(const id of a.ids){const it=S.items.find(i=>i.id===id);if(it)await db.doc("items/"+id).set({...it,id:undefined,wash:a.t==="wash"})}a.doneText=a.t==="wash"?"In the wash":"Back in rotation"}
+    a.done=true;saveChat();renderChat()}
+  catch{toast("Couldn't do that. Try again.")}}
 function chatContext(){const pool=S.items.filter(i=>!i.wash);const tc=tagCounts();
   const pins=Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,c])=>`${PIECE[k]?.short||k} ×${c}`).join(", ");
   const gaps=liveGaps().slice(0,5).map(g=>g.item).join("; ");
@@ -828,16 +846,23 @@ Conversation so far:
 ${hist||"(new chat)"}
 User: ${text}
 
-Reply with only JSON: {"reply": your message, "items": [closet ids if you're proposing a specific outfit from their closet, else []], "brands": [up to 4 brand names if you recommend shopping somewhere, else []]}`;
+You can offer actions the user confirms with one tap. Offer one only when it clearly fits what they asked: "save_fit" (save the outfit in "items"), "wore" (log the outfit in "items" as worn today), "want" (add a brand to their want list, set "brand"), "wash" (mark closet "ids" as in the wash), "unwash" (take closet "ids" out of the wash).
+Reply with only JSON: {"reply": your message, "items": [closet ids if you're proposing a specific outfit from their closet, else []], "brands": [up to 4 brand names if you recommend shopping somewhere, else []], "actions": [{"type": "save_fit"|"wore"|"want"|"wash"|"unwash", "brand": "only for want", "ids": ["only for wash/unwash"]}]}`;
   const r=await sample.json(prompt,{cache:false});
   const ids=new Set(S.items.map(i=>i.id));
-  return {text:String(r.reply||"…").slice(0,1200),items:(r.items||[]).filter(id=>ids.has(id)).slice(0,6),brands:(r.brands||[]).map(String).slice(0,4)}}
+  const items=(r.items||[]).filter(id=>ids.has(id)).slice(0,6);
+  const acts=(Array.isArray(r.actions)?r.actions:[]).map(a=>({t:String(a?.type||""),brand:a?.brand?String(a.brand).slice(0,80):undefined,ids:(a?.ids||[]).filter(id=>ids.has(id))}))
+    .filter(a=>((a.t==="save_fit"||a.t==="wore")&&items.length>=2)||(a.t==="want"&&a.brand)||((a.t==="wash"||a.t==="unwash")&&a.ids.length)).slice(0,3);
+  if(items.length>=2&&!acts.some(a=>a.t==="save_fit"))acts.push({t:"save_fit"});
+  return {text:String(r.reply||"…").slice(0,1200),items,brands:(r.brands||[]).map(String).slice(0,4),acts}}
 function rotBuiltIn(text){const t=text.toLowerCase();const pool=S.items.filter(i=>!i.wash);
   if(/wear|fit|outfit|dress|today|tonight|tomorrow/.test(t)){
     if(pool.length<3)return {text:"i need at least a top, bottoms and shoes in your closet before i can dress you."};
     const temp=+$("m-temp").value||60,wx=$("m-wx").value;const f=fallbackFits(pool,temp,wx,"any")[0];
     if(!f)return {text:"couldn't make a full fit from what's clean. add more pieces or take some out of the wash."};
-    return {text:`${weatherText().split(",").slice(0,2).join(",").toLowerCase()}. ${f.why.charAt(0).toLowerCase()+f.why.slice(1)}${f.proportion?" "+f.proportion.toLowerCase():""}`,items:f.items}}
+    return {acts:[{t:"save_fit"},{t:"wore"}],text:`${weatherText().split(",").slice(0,2).join(",").toLowerCase()}. ${f.why.charAt(0).toLowerCase()+f.why.slice(1)}${f.proportion?" "+f.proportion.toLowerCase():""}`,items:f.items}}
+  const washM=t.match(/^(?:put |mark )?(?:my )?(.+?) (?:is |are )?(?:in the wash|dirty)$/)||t.match(/^wash (?:my )?(.+)$/);
+  if(washM){const hit=S.items.filter(i=>i.name.toLowerCase().includes(washM[1].replace(/^the /,"").trim()));if(hit.length)return {text:`${hit.map(i=>i.name.toLowerCase()).join(", ")}. mark ${hit.length>1?"them":"it"} as in the wash?`,acts:[{t:"wash",ids:hit.slice(0,4).map(i=>i.id)}]}}
   if(/buy|need|missing|next|shop|get/.test(t)){const g=liveGaps().slice(0,3);if(!g.length)return {text:"tag the pieces in your pins and i'll find what's missing."};
     return {text:g.map((x,i)=>`${i+1}. ${x.item.toLowerCase()}${x.size?` (your size: ${x.size})`:""}`).join("\n"),brands:[...new Set(g.flatMap(x=>x.brands||[]))].slice(0,4)}}
   if(/size|fit me|measure/.test(t)){const c=sizeCard();if(!c)return {text:"add your measurements in You → measurements & sizes and i'll convert them for any country."};
@@ -855,10 +880,229 @@ $("chat-clear").onclick=()=>{CHAT.msgs=[];saveChat();openChat()};
 $("chat-form").onsubmit=e=>{e.preventDefault();sendChat($("chat-in").value)};
 loadWeather();
 
+/* ---------- wear tracking ---------- */
+const DAY=864e5;
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
+let wearCache=null;
+function wearStats(){if(wearCache)return wearCache;const m=new Map();
+  for(const w of S.wears)for(const id of (w.items||[])){const s=m.get(id)||{n:0,last:0,days:new Set()};if(!s.days.has(w.day)){s.days.add(w.day);s.n++}s.last=Math.max(s.last,w.at||0);m.set(id,s)}
+  return wearCache=m}
+function wearOf(it){const s=wearStats().get(it.id);const n=s?.n||0,last=s?.last||0;const since=Math.floor((Date.now()-(last||it.created||Date.now()))/DAY);
+  const price=+it.price||0;return {n,last,since,cpw:price?(n?price/n:price):null}}
+function wornLabel(it){const w=wearOf(it);if(!S.wears.length)return "";if(!w.n)return w.since>=21?`<span class="worn idle">never worn · ${w.since}d</span>`:`<span class="worn">not worn yet</span>`;
+  return `<span class="worn${w.since>=30?" idle":""}">worn ${w.n}× · ${w.since===0?"today":w.since+"d ago"}</span>`}
+const money=v=>v>=100?"$"+Math.round(v):"$"+v.toFixed(v<10?2:0);
+function wearStatText(it){const w=wearOf(it);const parts=[w.n?`Worn ${w.n}×, last ${w.since===0?"today":w.since===1?"yesterday":w.since+" days ago"}.`:"Not worn yet."];
+  if(w.cpw!=null)parts.push(`${money(w.cpw)} per wear${w.n?"":" (wear it once and it starts dropping)"}.`);return parts.join(" ")}
+function wornToday(ids){const d=today(),k=[...ids].sort().join();return S.wears.find(w=>w.day===d&&[...(w.items||[])].sort().join()===k)}
+async function logWear(ids,title){if(!db||!ids?.length)return;const hit=wornToday(ids);
+  try{if(hit){await db.doc("wears/"+hit.id).delete();toast("Took it off today's log.")}
+    else{await db.collection("wears").doc().set({day:today(),items:ids,title:title||"",at:Date.now()});toast("Logged. ROT will rotate around it.")}}catch{toast("Couldn't log that.")}}
+// pieces that have been sitting longest (only once there's some history)
+function idlePieces(n=3){if(S.wears.length<3)return [];return S.items.filter(i=>!i.wash).map(i=>({i,w:wearOf(i)})).filter(x=>x.w.since>=21).sort((a,b)=>b.w.since-a.w.since).slice(0,n)}
+function renderReport(){const box=$("c-report");if(!box)return;if(!S.wears.length||!S.items.length){box.innerHTML="";return}
+  const month=Date.now()-30*DAY,ids=new Set();let outfits=0;for(const w of S.wears)if(w.at>=month){outfits++;(w.items||[]).forEach(x=>ids.add(x))}
+  const used=S.items.filter(i=>ids.has(i.id)).length,pct=Math.round(100*used/S.items.length);
+  const priced=S.items.filter(i=>+i.price>0),spent=priced.reduce((t,i)=>t+ +i.price,0),wornN=priced.reduce((t,i)=>t+wearOf(i).n,0);
+  const idle=idlePieces(2);
+  box.innerHTML=`<div><div class="k">${pct}%</div><div class="l">of closet worn in 30 days</div></div><div><div class="k">${outfits}</div><div class="l">fits logged in 30 days</div></div>
+    <div><div class="k">${priced.length&&wornN?money(spent/wornN):"—"}</div><div class="l">avg cost per wear</div></div>
+    ${idle.length?`<div class="idle-row">rot › sitting longest: ${idle.map(x=>`<button data-idle="${esc(x.i.id)}">${esc(x.i.name.toLowerCase())}</button> (${x.w.since}d)`).join(", ")}. wear ${idle.length>1?"one":"it"} this week.</div>`:""}`;
+  box.querySelectorAll("[data-idle]").forEach(b=>b.onclick=()=>openSheet(S.items.find(i=>i.id===b.dataset.idle)))}
+let cSort="new";try{cSort=localStorage.getItem("rot-csort")||"new"}catch{}
+$("c-sort").value=cSort;$("c-sort").onchange=e=>{cSort=e.target.value;try{localStorage.setItem("rot-csort",cSort)}catch{}renderCloset()};
+function sortCloset(list){const by={most:(a,b)=>wearOf(b).n-wearOf(a).n,least:(a,b)=>wearOf(a).n-wearOf(b).n||wearOf(b).since-wearOf(a).since,
+  idle:(a,b)=>wearOf(b).since-wearOf(a).since,cpw:(a,b)=>(wearOf(b).cpw??-1)-(wearOf(a).cpw??-1)}[cSort];return by?list.slice().sort(by):list}
+$("f-wore").onclick=async()=>{const it=S.editing;if(!it)return;await logWear([it.id],it.name);setTimeout(()=>{$("f-wear-stat").textContent=wearStatText(S.items.find(i=>i.id===it.id)||it);$("f-wore").textContent=wornToday([it.id])?"Logged today ✓":"Wore it today"},400)};
+
+/* ---------- swipe deck (real products) ---------- */
+const SW={list:null,at:0,hist:[],busy:false};
+const CUR={USD:"$",GBP:"£",EUR:"€",JPY:"¥",CAD:"CA$",AUD:"A$",KRW:"₩",INR:"₹"};
+const priceText=p=>p.price!=null?`${CUR[p.currency]||((p.currency||"")+" ")}${p.price>=100||p.currency==="JPY"||p.currency==="KRW"?Math.round(p.price).toLocaleString():(+p.price).toFixed(2)}`:"";
+function classifyProduct(title,brand){const t=(title||"").toLowerCase();const p=PIECES.find(q=>q.re.test(t));const b=brand?findBrand(brand):null;
+  let styles=b?.s?.filter(x=>x!=="all")||[];if(p)styles=styles.length?styles.filter(x=>p.s.includes(x)).concat(p.s).slice(0,3):p.s.slice(0,3);
+  return {piece:p?.key||null,styles:[...new Set(styles)].slice(0,4),audience:p?.a||b?.a||"u"}}
+async function loadProducts(force){if(!force&&SW.list&&Date.now()-SW.at<10*60e3)return SW.list;let sh=null;try{sh=await claude.use("shared")}catch{}
+  if(!sh){SW.list=SW.list||[];return SW.list}
+  try{const r=await sh.from("products").select("*").order("created_at",{ascending:false}).limit(800);if(!r.error){SW.list=r.data||[];SW.at=Date.now()}}catch{}
+  return SW.list||[]}
+function swipedIds(){return new Set(S.swipes.map(s=>String(s.pid)))}
+function productScore(p){const keys=new Set(userStyles()),w=tagWeights(),own=new Set([...marked("own"),...marked("want"),...closetBrands()]);
+  let sc=Math.random()*0.8;const why=[];
+  const st=(p.styles||[]).filter(x=>keys.has(x));if(st.length){sc+=3;why.push(`${styleName(st[0]).toLowerCase()}`)}
+  const pw=p.piece?w[p.piece]||0:0;if(pw>0){sc+=Math.min(4,pw);why.push(`${(PIECE[p.piece]?.short||p.piece).toLowerCase()} keeps showing up in your pins`)}
+  const b=p.brand?findBrand(p.brand):null;if(b&&own.has(b.b)){sc+=1.5;why.push(`you're into ${b.b.toLowerCase()}`)}
+  if(p.piece&&PIECE[p.piece]&&ownsPiece(PIECE[p.piece]))sc-=1;
+  const budget=S.prefs?.budget||2;if(b&&b.t>budget&&b.k!=="Buy used")sc-=1.5;
+  return {sc,why}}
+function deck(){const seen=swipedIds();return (SW.list||[]).filter(p=>!seen.has(String(p.id))&&audOk(p.audience)).map(p=>({p,...productScore(p)})).sort((a,b)=>b.sc-a.sc)}
+function cardHTML(x,behind){const p=x.p;const sz=p.piece&&PIECE[p.piece]?sizeFor(PIECE[p.piece]):"";
+  return `<div class="sw-card${behind?" behind":""}" data-pid="${esc(String(p.id))}"><span class="stamp yes">like</span><span class="stamp no">nope</span>
+    <div class="im"><img src="${esc(p.image)}" alt="${esc(p.title)}" referrerpolicy="no-referrer" loading="eager"></div>
+    <div class="info"><span class="t">${esc(p.title)}</span><span class="m">${esc([p.brand,p.store,priceText(p)].filter(Boolean).join(" · "))}${sz?` · your size ${esc(sz)}`:""}</span>
+    ${x.why.length?`<span class="why">rot › ${esc(x.why.slice(0,2).join(", "))}.</span>`:""}<a href="${esc(p.url)}" target="_blank" rel="noopener">See it on ${esc(p.store||"the shop")} ↗</a></div></div>`}
+function renderDeck(){const st=$("sw-stack"),d=deck();
+  $("sw-title").textContent=d.length?`Swipe · ${d.length} left`:"Swipe";
+  if(!d.length){st.innerHTML=`<div class="sw-empty"><p class="rot-line">${(SW.list||[]).length?"you've seen everything. add more links and the deck grows for everyone.":"deck's empty. paste links to products you're eyeing and they show up here for everyone."}</p><button class="btn" id="sw-empty-add">Add product links</button></div>`;
+    $("sw-empty-add").onclick=openAdd;$("sw-yes").disabled=$("sw-no").disabled=true;return}
+  $("sw-yes").disabled=$("sw-no").disabled=false;
+  st.innerHTML=(d[1]?cardHTML(d[1],true):"")+cardHTML(d[0]);
+  const card=st.querySelector(".sw-card:not(.behind)");dragCard(card,d[0].p)}
+function dragCard(card,p){let x0=0,y0=0,dx=0,active=false;
+  const stamp=v=>{card.querySelector(".stamp.yes").style.opacity=Math.max(0,Math.min(1,v/90));card.querySelector(".stamp.no").style.opacity=Math.max(0,Math.min(1,-v/90))};
+  card.addEventListener("pointerdown",e=>{if(e.target.closest("a"))return;active=true;x0=e.clientX;y0=e.clientY;dx=0;card.classList.add("drag");card.setPointerCapture(e.pointerId)});
+  card.addEventListener("pointermove",e=>{if(!active)return;dx=e.clientX-x0;const dy=(e.clientY-y0)*0.2;card.style.transform=`translate(${dx}px,${dy}px) rotate(${dx/18}deg)`;stamp(dx)});
+  const end=()=>{if(!active)return;active=false;card.classList.remove("drag");if(Math.abs(dx)>90)swipe(p,dx>0?1:-1,card);else{card.style.transform="";stamp(0)}};
+  card.addEventListener("pointerup",end);card.addEventListener("pointercancel",end)}
+async function swipe(p,v,card){card=card||$("sw-stack").querySelector(".sw-card:not(.behind)");if(!card||SW.busy)return;SW.busy=true;
+  card.style.transform=`translate(${v*window.innerWidth}px,0) rotate(${v*20}deg)`;card.style.opacity="0";
+  const doc={pid:p.id,v,at:Date.now(),title:p.title,image:p.image,url:p.url,price:p.price,currency:p.currency,brand:p.brand,store:p.store,piece:p.piece||null};
+  S.swipes=[...S.swipes.filter(s=>String(s.pid)!==String(p.id)),{id:"p"+p.id,...doc}];SW.hist.push(p.id);
+  setTimeout(()=>{SW.busy=false;renderDeck()},220);
+  if(db)try{await db.doc("swipes/p"+p.id).set(doc)}catch{}}
+$("sw-yes").onclick=()=>{const d=deck()[0];if(d)swipe(d.p,1)};
+$("sw-no").onclick=()=>{const d=deck()[0];if(d)swipe(d.p,-1)};
+$("sw-undo").onclick=async()=>{const id=SW.hist.pop();if(id==null){toast("Nothing to undo.");return}S.swipes=S.swipes.filter(s=>String(s.pid)!==String(id));renderDeck();if(db)try{await db.doc("swipes/p"+id).delete()}catch{}};
+async function openDeck(){$("swipe").hidden=false;document.body.classList.add("locked");$("sw-stack").innerHTML='<div class="sw-empty"><p class="rot-line">loading the deck…</p></div>';
+  await loadProducts();if(!(await claude.use("shared"))&&!(SW.list||[]).length){$("sw-stack").innerHTML='<div class="sw-empty"><p class="rot-line">the swipe deck needs sync turned on. sign in with your rotation account.</p></div>';return}renderDeck()}
+function closeDeck(){$("swipe").hidden=true;document.body.classList.remove("locked");renderLikes();renderGaps()}
+function openAdd(){$("swf").reset();$("swf-msg").textContent="";$("swadd").hidden=false;setTimeout(()=>$("swf-urls").focus(),50)}
+$("sw-open").onclick=openDeck;$("sw-close").onclick=closeDeck;$("sw-add").onclick=openAdd;$("sw-add2").onclick=openAdd;
+$("swf-close").onclick=()=>$("swadd").hidden=true;
+$("swf").onsubmit=async e=>{e.preventDefault();const urls=[...new Set(($("swf-urls").value.match(/https:\/\/[^\s<>"']+/g)||[]))].slice(0,20);
+  if(!urls.length){$("swf-msg").textContent="Paste at least one https link.";return}
+  const sh=await claude.use("shared");if(!sh){$("swf-msg").textContent="Adding products needs sync turned on (sign in).";return}
+  $("swf-go").disabled=true;let ok=0;const bad=[];
+  for(const [n,u] of urls.entries()){$("swf-msg").textContent=`Reading ${n+1} of ${urls.length}…`;
+    try{const {data,error}=await sh.functions.invoke("product",{body:{url:u}});const err=error?(await error.context?.json?.().catch(()=>null))?.error||error.message:data?.error;
+      if(err||!data?.product){bad.push(`${new URL(u).hostname.replace(/^www\./,"")}: ${err||"no product found"}`);continue}
+      const p=data.product;if(!data.existed&&!p.piece){const c=classifyProduct(p.title,p.brand);if(c.piece||c.styles.length){await sh.from("products").update(c).eq("id",p.id);Object.assign(p,c)}}
+      SW.list=[p,...(SW.list||[]).filter(x=>x.id!==p.id)];ok++}
+    catch(x){bad.push(`${u.slice(0,40)}…: ${x.message||"failed"}`)}}
+  $("swf-go").disabled=false;$("sw-count").textContent=SW.list?.length?`${deck().length} to swipe`:"";
+  $("swf-msg").textContent=(ok?`Added ${ok}. `:"")+(bad.length?`Couldn't read: ${bad.join("; ")}`:"");
+  if(ok&&!bad.length){setTimeout(()=>{$("swadd").hidden=true;if(!$("swipe").hidden)renderDeck()},700)}else if(ok&&!$("swipe").hidden)renderDeck()};
+function renderLikes(){const box=$("sw-likes");if(!box)return;const likes=S.swipes.filter(s=>s.v===1).sort((a,b)=>b.at-a.at);
+  if(SW.list&&$("sw-count"))$("sw-count").textContent=deck().length?`${deck().length} to swipe`:"";
+  if(!likes.length){box.innerHTML="";return}
+  box.innerHTML=`<div class="panel"><h2>Liked from the deck</h2><p class="muted" style="font-size:.9rem">These count like pins: what you like here moves your Next buys.</p><div class="like-grid">${likes.map(s=>`<div class="like"><img src="${esc(s.image)}" alt="" referrerpolicy="no-referrer" loading="lazy"><div class="b"><span class="t">${esc(s.title)}</span><span class="muted">${esc([s.brand||s.store,priceText(s)].filter(Boolean).join(" · "))}</span><div class="row"><a href="${esc(s.url)}" target="_blank" rel="noopener">Buy ↗</a><button class="btn ghost small" data-unlike="${esc(String(s.pid))}">Remove</button></div></div></div>`).join("")}</div></div>`;
+  box.querySelectorAll("[data-unlike]").forEach(b=>b.onclick=async()=>{const id=b.dataset.unlike;S.swipes=S.swipes.filter(s=>String(s.pid)!==id);renderLikes();renderGaps();if(db)try{await db.doc("swipes/p"+id).delete()}catch{}})}
+
+/* ---------- trip packing ---------- */
+const TRIP={place:null,last:null};
+try{TRIP.last=JSON.parse(localStorage.getItem("rot-trip")||"null")}catch{}
+(()=>{const d=new Date(Date.now()+7*DAY);$("trip-start").value=d.toISOString().slice(0,10)})();
+$("trip-city").addEventListener("input",()=>{TRIP.place=null});
+async function findPlace(q){const r=await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en`)).json();return r.results||[]}
+async function tripWeather(pl,start,days){const s=new Date(start+"T12:00:00"),e=new Date(s.getTime()+(days-1)*DAY);const iso=d=>d.toISOString().slice(0,10);
+  const ahead=(e-Date.now())/DAY;const daily="temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max,precipitation_sum,weather_code,wind_speed_10m_max";
+  let url,typical=false;
+  if(ahead<=15)url=`https://api.open-meteo.com/v1/forecast?latitude=${pl.latitude}&longitude=${pl.longitude}&daily=${daily}&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&start_date=${iso(s)}&end_date=${iso(e)}`;
+  else{typical=true;const ly=d=>{const x=new Date(d);x.setFullYear(x.getFullYear()-1);return iso(x)};
+    url=`https://archive-api.open-meteo.com/v1/archive?latitude=${pl.latitude}&longitude=${pl.longitude}&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,weather_code,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&start_date=${ly(s)}&end_date=${ly(e)}`}
+  const j=await (await fetch(url)).json();if(!j.daily)throw 0;const D=j.daily;
+  return {typical,days:D.time.map((t,i)=>{const hi=Math.round(D.apparent_temperature_max?.[i]??D.temperature_2m_max[i]),lo=Math.round(D.apparent_temperature_min?.[i]??D.temperature_2m_min[i]);
+    const code=D.weather_code[i],rain=D.precipitation_probability_max?.[i]??((D.precipitation_sum[i]||0)>0.08?70:10),wind=Math.round(D.wind_speed_10m_max[i]||0);
+    const date=new Date(s.getTime()+i*DAY);return {date:iso(date),label:date.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}),hi,lo,code,rain,wind,
+      wx:rain>=50?wxBucket([71,73,75,77,85,86].includes(code)?71:63,wind):wxBucket(code,wind)}})}}
+// one fit per day, preferring pieces already in the bag so you pack less
+function packBuiltIn(days,pool){const packed=new Set(),plan=[];
+  for(const d of days){const temp=Math.round(d.lo+(d.hi-d.lo)*0.6);let opts=[];for(let k=0;k<4;k++)opts.push(...fallbackFits(pool,temp,d.wx,"any"));
+    const seen=new Set();opts=opts.filter(f=>{const k=f.items.join();if(seen.has(k))return false;seen.add(k);return true});
+    const used=new Set(plan.map(p=>p.items.join()));
+    const best=opts.map(f=>({f,s:f.items.filter(id=>packed.has(id)).length*2-(used.has(f.items.join())?3:0)-f.items.length*0.5})).sort((a,b)=>b.s-a.s)[0];
+    if(!best){plan.push({...d,items:[],note:"nothing clean fits this weather"});continue}
+    best.f.items.forEach(id=>packed.add(id));plan.push({...d,items:best.f.items,note:best.f.why})}
+  return plan}
+function extrasFor(days,plan){const n=days.length,cold=days.some(d=>d.lo<40),wet=days.some(d=>d.rain>=50),hot=days.some(d=>d.hi>=82);
+  const x=[`${n+1} pairs of underwear and socks`,"sleepwear",n>=3?"a spare tee":"",wet?"a compact umbrella":"",cold?"a beanie and gloves":"",hot?"sunglasses and sunscreen":"","a charger and a laundry bag"];return x.filter(Boolean)}
+function renderTrip(t){const box=$("trip-out");if(!t){box.innerHTML="";return}
+  const ids=[...new Set(t.plan.flatMap(d=>d.items))].filter(id=>S.items.some(i=>i.id===id));const its=ids.map(id=>S.items.find(i=>i.id===id));
+  const groups=CATS.map(([c,l])=>[l.split(" /")[0],its.filter(i=>i.cat===c)]).filter(g=>g[1].length);
+  box.innerHTML=`<div class="trip-pack"><h3>${esc(t.city)} · ${t.plan.length} day${t.plan.length>1?"s":""} · ${ids.length} pieces</h3>
+    ${t.typical?`<p class="muted" style="font-size:.85rem">Too far out for a forecast, so this uses last year's weather for the same dates.</p>`:""}
+    ${t.note?`<p class="rot-line">${esc(t.note)}</p>`:""}
+    <ul>${groups.map(([l,g])=>`<li><b>${esc(l)}:</b> ${g.map(i=>esc(i.name)).join(", ")}</li>`).join("")}</ul>
+    <p class="label" style="margin-top:8px">Also pack</p><ul>${t.extras.map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`+
+    t.plan.map((d,i)=>`<div class="trip-day"><h3>${esc(d.label)}</h3><span class="wxl">feels ${d.lo}–${d.hi}°F · ${esc(WX_CODES[d.code]||d.wx)}${d.rain>=30?` · ${d.rain}% rain`:""}${d.wind>=18?` · windy`:""}</span>
+      ${d.items.length?`<div class="chat-fit">${fitItems(d.items).map(x=>cell(x)).join("")}</div>${piecesHTML(d.items)}`:""}${d.note?`<p class="rot-line">${esc(d.note.charAt(0).toLowerCase()+d.note.slice(1))}</p>`:""}
+      ${d.items.length?`<button class="btn ghost small" style="align-self:flex-start" data-tripmq="${i}">ROT tries it on</button>`:""}</div>`).join("");
+  box.querySelectorAll("[data-tripmq]").forEach(b=>b.onclick=()=>{const d=t.plan[+b.dataset.tripmq];openMannequin(d.items,d.label,"")})}
+$("trip-form").onsubmit=async e=>{e.preventDefault();const q=$("trip-city").value.trim(),start=$("trip-start").value,days=Math.max(1,Math.min(14,+$("trip-days").value||3)),plan=$("trip-plan").value.trim();
+  const pool=S.items.filter(i=>!i.wash);if(pool.length<3){$("trip-status").textContent="Add a top, bottoms and shoes to your closet first.";return}
+  if(!q||!start){$("trip-status").textContent="Add a city and a date.";return}
+  try{if(!TRIP.place||TRIP.place.name.toLowerCase()!==q.toLowerCase().split(",")[0].trim()){$("trip-status").textContent="Finding the city…";const res=await findPlace(q.split(",")[0]);
+      if(!res.length){$("trip-status").textContent="Couldn't find that city. Try another spelling.";return}
+      if(res.length>1&&!TRIP.place){$("trip-pick").innerHTML=res.map((c,i)=>`<button type="button" class="btn ghost small" data-tc="${i}">${esc([c.name,c.admin1,c.country_code].filter(Boolean).join(", "))}</button>`).join("");
+        $("trip-status").textContent="Which one?";$("trip-pick").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{TRIP.place=res[+b.dataset.tc];$("trip-city").value=TRIP.place.name;$("trip-pick").innerHTML="";$("trip-form").requestSubmit()});return}
+      TRIP.place=TRIP.place||res[0]}
+    $("trip-go").disabled=true;$("trip-status").textContent="Checking the weather…";
+    const W=await tripWeather(TRIP.place,start,days);let out;
+    if(sample){$("trip-status").textContent="ROT is packing…";
+      try{const r=await sample.json(`You're packing a carry-on for someone from clothes they already own. ${personText()} ${bodyText()} ${tasteText()}
+Their styles: ${styleDefs(userStyles())}.
+Trip: ${TRIP.place.name}, ${TRIP.place.country||""}, ${days} days.${plan?` Plans: ${plan}.`:""}
+${W.typical?"Typical weather for those dates (last year's):":"Forecast"} (feels-like °F):
+${W.days.map(d=>`${d.date}: ${d.lo}-${d.hi}°F, ${WX_CODES[d.code]||d.wx}, ${d.rain}% rain, wind ${d.wind} mph`).join("\n")}
+Pack as few pieces as possible: re-wear bottoms, outerwear and shoes across days, vary tops. One full outfit per day (top or layer, bottom, shoes, plus a jacket when it's cold or wet). Match each day's weather.
+Closet (id | name | type | color | silhouette, length | warmth 1-3 | styles | notes). Use ONLY these ids:
+${closetText(pool)}
+Reply with only JSON: {"note": one short lowercase sentence in the voice of ROT, a blunt stylist, about how you packed, "days": [{"date": "YYYY-MM-DD", "items": [ids], "note": one short sentence on why this works that day}], "extras": [short strings for non-closet things to bring, like underwear counts, an umbrella]}`,{cache:false,modelTier:"complex"});
+        const ok=new Set(pool.map(i=>i.id));const byDate=new Map((r.days||[]).map(d=>[d.date,d]));
+        const planDays=W.days.map(d=>{const g=byDate.get(d.date);return {...d,items:(g?.items||[]).filter(id=>ok.has(id)),note:String(g?.note||"")}});
+        if(planDays.every(d=>d.items.length>=2))out={plan:planDays,extras:(r.extras||[]).map(String).slice(0,10),note:String(r.note||"")}}
+      catch{}}
+    if(!out)out={plan:packBuiltIn(W.days,pool),extras:extrasFor(W.days),note:""};
+    TRIP.last={city:TRIP.place.name,typical:W.typical,...out};try{localStorage.setItem("rot-trip",JSON.stringify(TRIP.last))}catch{}
+    renderTrip(TRIP.last);$("trip-status").textContent="";}
+  catch{$("trip-status").textContent="Couldn't get the weather for that trip. Check your connection and try again."}
+  finally{$("trip-go").disabled=false}};
+if(TRIP.last){$("trip-city").value=TRIP.last.city||"";renderTrip(TRIP.last)}
+
+/* ---------- share a fit ---------- */
+async function bmpFor(id){try{const b=await RP.getBlob(id);return b?await createImageBitmap(b):null}catch{return null}}
+function wrapText(x,text,maxW){const words=String(text).split(/\s+/),lines=[];let cur="";for(const w of words){const t=cur?cur+" "+w:w;if(x.measureText(t).width>maxW&&cur){lines.push(cur);cur=w}else cur=t}if(cur)lines.push(cur);return lines}
+async function fitCardImage(ids,title,why,vibe){const its=fitItems(ids);if(!its.length)throw 0;
+  const W=1080,H=1350,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  const style=STYLES[vibe]?vibe:mainStyle(),[ink,paper,acc]=(ROT.PALETTES[style]||ROT.PALETTES.streetwear).map(a=>`rgb(${a.join(",")})`);
+  try{await document.fonts.ready}catch{}
+  const MONO='"IBM Plex Mono", ui-monospace, monospace',DISP='"Silkscreen", "IBM Plex Mono", monospace',BODY='"Archivo", system-ui, sans-serif';
+  x.fillStyle=paper;x.fillRect(0,0,W,H);
+  // header
+  x.fillStyle=ink;x.font=`700 30px ${MONO}`;x.textBaseline="top";x.fillText("ROTATION",56,52);
+  x.font=`500 26px ${MONO}`;const d=new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}).toLowerCase();x.fillText(d,W-56-x.measureText(d).width,54);
+  x.fillRect(56,98,W-112,4);
+  x.font=`700 64px ${DISP}`;const tl=wrapText(x,(title||"today's fit").toUpperCase(),W-112).slice(0,2);tl.forEach((l,i)=>x.fillText(l,56,128+i*70));
+  const top=128+tl.length*70+24;
+  // ROT wearing the fit (left)
+  const rc=document.createElement("canvas");rc.width=160;rc.height=280;ROT.render(rc,ROT.outfitFromItems(its,style),{scale:1,seed:9,glitch:true,body:rotBody()});
+  const rw=360,rh=630;x.fillStyle=ink;x.fillRect(56,top,rw+8,rh+8);x.imageSmoothingEnabled=false;x.drawImage(rc,60,top+4,rw,rh);x.fillStyle=acc;x.fillRect(60,top+rh-6,rw,10);
+  // real photos (right grid)
+  const gx=56+rw+40,gw=W-56-gx,n=Math.min(its.length,6),cols=n<=2?1:2,rows=Math.ceil(n/cols),gap=14,cw=(gw-(cols-1)*gap)/cols,ch=(rh+8-(rows-1)*gap)/rows;
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
+  for(let i=0;i<n;i++){const it=its[i],cx=gx+(i%cols)*(cw+gap),cy=top+Math.floor(i/cols)*(ch+gap);x.fillStyle="#fff";x.fillRect(cx,cy,cw,ch);
+    const bm=await bmpFor(it.flat||it.body);if(bm){const s=Math.max(cw/bm.width,ch/bm.height),dw=bm.width*s,dh=bm.height*s;x.save();x.beginPath();x.rect(cx,cy,cw,ch);x.clip();x.drawImage(bm,cx+(cw-dw)/2,cy+(ch-dh)/2,dw,dh);x.restore()}
+    else{x.fillStyle=ink;x.font=`500 22px ${MONO}`;x.fillText((SLOT[it.cat]||it.cat).toLowerCase(),cx+14,cy+14)}
+    x.strokeStyle=ink;x.lineWidth=4;x.strokeRect(cx,cy,cw,ch)}
+  // pieces
+  let y=top+rh+48;x.fillStyle=ink;x.font=`600 30px ${BODY}`;
+  for(const it of its.slice(0,6)){const label=it.brand&&!it.name.toLowerCase().includes(it.brand.toLowerCase())?`${it.brand} ${it.name}`:it.name;
+    x.fillStyle=colorOf(it);x.fillRect(56,y+6,22,22);x.strokeStyle=ink;x.lineWidth=2;x.strokeRect(56,y+6,22,22);x.fillStyle=ink;x.fillText(wrapText(x,label,W-112-40)[0],92,y);y+=46;if(y>H-150)break}
+  // rot's line + footer
+  if(why&&y<H-140){x.font=`500 26px ${MONO}`;x.fillStyle=ink;wrapText(x,"rot › "+why.charAt(0).toLowerCase()+why.slice(1),W-112).slice(0,2).forEach((l,i)=>x.fillText(l,56,y+14+i*36))}
+  x.fillStyle=ink;x.fillRect(0,H-70,W,70);x.fillStyle=paper;x.font=`600 24px ${MONO}`;x.fillText("dressed by rot · "+location.host.replace(/^www\./,""),56,H-52);x.fillStyle=acc;x.fillRect(W-56-90,H-48,90,26);
+  return await new Promise(r=>c.toBlob(r,"image/png"))}
+async function shareFit(ids,title,why,vibe){try{toast("Making the card…");const blob=await fitCardImage(ids,title,why,vibe);const file=new File([blob],"rotation-fit.png",{type:"image/png"});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:title||"My fit",text:"dressed by rot"})}catch(e){if(e.name!=="AbortError")throw e}return}
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="rotation-fit.png";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),20000);toast("Saved the card. Share it from your photos or downloads.")}
+  catch{toast("Couldn't make the card.")}}
+
 /* ---------- saved ---------- */
 function renderSaved(){$("n-saved").textContent=S.fits.length;const l=$("s-list");
   l.innerHTML=S.fits.length?S.fits.map(f=>fitCard(f,0,"saved")).join(""):`<div class="empty"><h3>No saved fits</h3><p>Hit Save on a fit you'd actually wear and it lands here.</p></div>`;
   l.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.mq);if(f)openMannequin(f.items,f.title,f.vibe)});
+  l.querySelectorAll("[data-share]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.share);if(f)shareFit(f.items,f.title,f.why,f.vibe)});
+  l.querySelectorAll("[data-wores]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.wores);if(f)logWear(f.items,f.title)});
   l.querySelectorAll("[data-unsave]").forEach(b=>b.onclick=async()=>{try{await db.doc("fits/"+b.dataset.unsave).delete()}catch{toast("Couldn't remove.")}});}
 
 function renderAll(){renderCloset();renderInspo();renderSaved();renderRecreate();renderGaps();renderHeader();renderStylePanel()}
@@ -887,6 +1131,8 @@ renderAll();RP.renderSettings();renderRot();const HASH_TAB=(location.hash||"").s
   db.collection("profile").orderBy("at","desc").limit(1).onSnapshot(q=>{S.profile=q.docs[0]?q.docs[0].data():null;renderInspo()},()=>{});
   db.collection("gaps").orderBy("at","desc").limit(1).onSnapshot(q=>{S.gaps=q.docs[0]?q.docs[0].data():null;renderGaps();if(S.tab==="brands")renderBrands();if(S.tab==="buys")maybeAutoRefresh()},()=>{});
   db.doc("sizes/me").onSnapshot(d=>{S.sizes=d.exists?d.data():null;if(!sample)renderGaps();if(S.tab==="you")fillSizeForm()},()=>{});
+  sub(db.collection("swipes"),"swipes",()=>{renderLikes();if(!sample)renderGaps()});
+  sub(db.collection("wears").orderBy("at","desc").limit(1000),"wears",()=>{wearCache=null;renderCloset();renderFits();renderSaved();sayNow()});
   sub(db.collection("fitref"),"fitref",()=>{renderFitRefs();renderGaps()});
   db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;renderRot();if(S.tab==="you")fillBodyForm()},()=>{});
   // New here? Ask the style quiz once the account's data has had a chance to sync down.
