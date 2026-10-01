@@ -174,6 +174,19 @@ label.chip input{position:absolute;opacity:0;pointer-events:none}
 }
 .brand{cursor:pointer;font-family:var(--body)}
 button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:var(--body)}
+.z-table-wrap{overflow-x:auto;margin-top:6px;-webkit-overflow-scrolling:touch}
+.z-table{border-collapse:collapse;width:100%;font:500 .76rem var(--mono)}
+.z-table th,.z-table td{border:1.5px solid var(--ink);padding:5px 4px;text-align:left;white-space:nowrap}
+.z-table thead th{background:var(--ink);color:var(--paper,var(--bg))}
+.z-table tbody th{font-weight:600}
+.z-table td.main{background:var(--tag)}
+.z-notes{margin:8px 0 0;padding-left:18px;font-size:.9rem}
+.z-how summary{cursor:pointer;font-weight:600}
+.z-how ul{margin:6px 0 0;padding-left:18px;font-size:.9rem}
+.zr-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.zr-list li{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1.5px solid var(--ink);padding:6px 10px;font-size:.9rem}
+.gap-fit{font-size:.85rem;color:var(--muted);margin:0}
+.gap-fit b{color:var(--ink);font-weight:600}
 .gap-size{font:500 .8rem var(--mono);color:var(--ink);background:var(--tag);border:1px solid var(--line);border-radius:6px;padding:3px 8px;align-self:flex-start}
 .fresh{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;border:1.5px dashed var(--accent);border-radius:10px;padding:10px 12px;font-size:.92rem}
 .fresh b{font-family:var(--mono);font-weight:500}
@@ -199,6 +212,16 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .b-item .tr{font:600 .85rem var(--mono);color:var(--sc);text-align:right}
 .b-item .nt{grid-column:1/-1;font-size:.88rem;color:var(--muted)}
 .b-item .ft{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.b-more{grid-column:1/-1;margin:10px 0 4px}
+.trend-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.trend{border:1.5px solid var(--ink);padding:8px 10px;display:flex;flex-direction:column;gap:3px;background:var(--surface);min-width:0}
+.trend .tn{font-weight:700;background:none;border:0;padding:0;text-align:left;color:var(--ink);font-size:1rem;cursor:pointer}
+.trend .ts{font:500 .78rem var(--mono)}
+.trend .ts .upw{color:var(--accent);font-weight:700}
+.trend a{font-size:.82rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+label.check{display:flex;gap:8px;align-items:flex-start;font-size:.9rem}
+label.check input{margin-top:3px}
+.b-cc{font:500 .72rem var(--mono);color:var(--muted);white-space:nowrap}
 .b-tag{font:500 .68rem var(--mono);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);padding:1px 6px;border-radius:3px}
 .b-pill{font:500 .68rem var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:var(--sc);color:var(--bg)}
 .b-pill.want{background:transparent;color:var(--sc);border:1.5px dashed var(--sc)}
@@ -256,7 +279,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=20261001-1">
 </head>
 <body>
 
@@ -325,7 +348,8 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <div class="b-row"><span class="label">Shopping for</span><div class="b-row" id="b-cats"></div></div>
         <div class="b-row"><span class="label">Budget</span><div class="b-row" id="b-tiers"></div></div>
         <div class="b-row"><span class="label">Brand type</span><div class="b-row" id="b-tags"></div></div>
-        <div class="b-row"><input type="text" id="b-q" class="b-search" placeholder="Search a brand or item" aria-label="Search brands"><span class="b-count" id="b-count"></span></div>
+        <div class="b-row"><span class="label">Based in</span><div class="b-row" id="b-regions"></div></div>
+        <div class="b-row"><input type="text" id="b-q" class="b-search" placeholder="Search a brand, item or country" aria-label="Search brands"><span class="b-count" id="b-count"></span></div>
       </div>
     </div>
     <div id="b-list"></div>
@@ -399,6 +423,43 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <li>Face the camera, arms slightly away from your sides, same daylight each time.</li>
         <li>Wear plain black or neutral pieces for everything you're not photographing.</li>
       </ol>
+    </div>
+    <div class="panel" id="sizepanel" style="margin-top:16px">
+      <h2>Measurements &amp; sizes</h2>
+      <p class="muted">Add a few measurements and Rotation works out your size in US, UK, EU, Japanese and Korean sizing, then shows it on your next buys. Everything is optional.</p>
+      <div class="row tight">
+        <div class="field"><label class="label" for="z-cut">Size me in</label><select id="z-cut"><option value="mens">Men's</option><option value="womens">Women's</option></select></div>
+        <div class="field"><label class="label" for="z-unit">Units</label><select id="z-unit"><option value="in">Inches</option><option value="cm">Centimeters</option></select></div>
+        <div class="field"><label class="label" for="z-fit">I like my fit</label><select id="z-fit"><option value="fitted">Fitted</option><option value="regular" selected>Regular</option><option value="relaxed">Relaxed</option><option value="oversized">Oversized</option></select></div>
+      </div>
+      <div class="row tight">
+        <div class="field"><label class="label" for="z-chest" id="z-chest-l">Chest</label><input type="number" id="z-chest" inputmode="decimal" step="0.5" min="0"></div>
+        <div class="field"><label class="label" for="z-waist">Waist</label><input type="number" id="z-waist" inputmode="decimal" step="0.5" min="0"></div>
+        <div class="field"><label class="label" for="z-hips">Hips</label><input type="number" id="z-hips" inputmode="decimal" step="0.5" min="0"></div>
+        <div class="field"><label class="label" for="z-inseam">Inseam</label><input type="number" id="z-inseam" inputmode="decimal" step="0.5" min="0"></div>
+      </div>
+      <div class="row tight">
+        <div class="field"><label class="label" for="z-shoe">Shoe size you wear</label><input type="text" id="z-shoe" inputmode="decimal" placeholder="10"></div>
+        <div class="field"><label class="label" for="z-shoesys">Sizing</label><select id="z-shoesys"><option value="USM">US men's</option><option value="USW">US women's</option><option value="UK">UK</option><option value="EU">EU</option><option value="CM">Foot length (cm)</option></select></div>
+      </div>
+      <details class="z-how"><summary>How to measure</summary><ul>
+        <li><b>Chest / bust:</b> around the fullest part, tape level under your arms.</li>
+        <li><b>Waist:</b> where you wear your pants, not your natural waist, for jeans sizing.</li>
+        <li><b>Hips:</b> around the widest part of your seat, feet together.</li>
+        <li><b>Inseam:</b> crotch to the floor, barefoot, or measure a pair of pants that fits.</li>
+        <li><b>Foot:</b> stand on paper, mark heel and longest toe, measure in cm.</li></ul></details>
+      <div class="row" style="align-items:center"><button class="btn" id="z-save">Save sizes</button><span class="status" id="z-state"></span></div>
+      <div id="z-card"></div>
+      <h3 style="margin-top:8px">Sizes that fit you</h3>
+      <p class="muted" style="font-size:.9rem">Add a few things you own and how they fit. Rotation trusts these over any chart when you shop that brand again.</p>
+      <form class="row tight" id="zr-form">
+        <div class="field"><label class="label" for="zr-brand">Brand</label><input type="text" id="zr-brand" placeholder="Levi's" autocomplete="off"></div>
+        <div class="field"><label class="label" for="zr-kind">Piece</label><select id="zr-kind"><option value="tops">Tops</option><option value="bottoms">Bottoms</option><option value="shoes">Shoes</option></select></div>
+        <div class="field"><label class="label" for="zr-size">Size</label><input type="text" id="zr-size" placeholder="32x32, M, 10"></div>
+        <div class="field"><label class="label" for="zr-fit">Fit</label><select id="zr-fit"><option value="right">Fits right</option><option value="small">Ran small</option><option value="big">Ran big</option></select></div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end"><button class="btn ghost" type="submit">Add</button></div>
+      </form>
+      <ul class="zr-list" id="zr-list"></ul>
     </div>
         <div class="panel" id="settings" style="margin-top:16px"></div>
   </section>
@@ -475,6 +536,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       <div class="field"><label class="label" for="bf-tier">Price</label><select id="bf-tier"><option value="1">$</option><option value="2" selected>$$</option><option value="3">$$$</option></select></div>
     </div>
     <div class="field"><label class="label" for="bf-note">Note (optional)</label><input type="text" id="bf-note" placeholder="Great straight-leg jeans"></div>
+    <label class="check"><input type="checkbox" id="bf-share" checked> Suggest it for everyone. Once approved it shows up in other people's brand lists too.</label>
     <p class="status" id="bf-msg" aria-live="polite"></p>
     <div class="row" style="justify-content:flex-end"><button type="submit" class="btn">Add to my atlas</button></div>
   </form>
@@ -483,11 +545,13 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
   <div class="setup-body" id="setup-body"></div>
 </div>
 
-<script src="config.js"></script>
-<script src="supabase.js"></script>
-<script src="platform.js"></script>
-<script src="catalog.js"></script>
-<script src="rot.js"></script>
-<script src="app.js"></script>
+<script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
+<script src="config.js?v=20261001-1"></script>
+<script src="supabase.js?v=20261001-1"></script>
+<script src="platform.js?v=20261001-1"></script>
+<script src="catalog.js?v=20261001-1"></script>
+<script src="size.js?v=20261001-1"></script>
+<script src="rot.js?v=20261001-1"></script>
+<script src="app.js?v=20261001-1"></script>
 </body>
 </html>

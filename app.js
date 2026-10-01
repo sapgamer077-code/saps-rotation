@@ -2,7 +2,7 @@
 
 const CATS=[["top","Tee / shirt"],["mid","Hoodie / knit"],["outer","Jacket / coat"],["bottom","Pants / shorts"],["shoes","Shoes"],["acc","Accessory"]];
 const CATNAME=Object.fromEntries(CATS);
-const S={items:[],inspo:[],fits:[],feedback:[],marks:[],gapfb:[],mybrands:[],ai:null,prefs:null,loaded:false,profile:null,gaps:null,body:null,filter:"all",tab:null,recreate:null,editing:null,pending:{flat:null,body:null},lastFits:[]};
+const S={items:[],inspo:[],fits:[],feedback:[],marks:[],gapfb:[],mybrands:[],fitref:[],sizes:null,trends:null,pool:[],ai:null,prefs:null,loaded:false,profile:null,gaps:null,body:null,filter:"all",tab:null,recreate:null,editing:null,pending:{flat:null,body:null},lastFits:[]};
 let db=null,assets=null,sample=null,imgMax=0,ctl=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -18,7 +18,7 @@ const audOk=a=>audFor(shopFor(),a);
 function personText(){const p=S.prefs||{};const who=p.shop==="mens"?"shops menswear":p.shop==="womens"?"shops womenswear":"shops across menswear and womenswear";return `The user${p.name?` (${p.name})`:""} ${who}.`}
 function tasteText(){const p=S.prefs||{};const f=(p.focus||[]).map(k=>PIECE[k]?.short).filter(Boolean);const z=p.sizes||{};const b=p.budget||2;
   return [f.length?`They want more of: ${f.join(", ")}.`:"",`Budget: ${b===1?"mostly budget ($)":b===2?"up to mid-range ($$)":"open to premium ($$$) and resale"}.`,
-    (z.tops||z.bottoms||z.shoes)?`Sizes: tops ${z.tops||"not given"}, bottoms ${z.bottoms||"not given"}, shoes ${z.shoes||"not given"}.`:""].filter(Boolean).join(" ")}
+    (z.tops||z.bottoms||z.shoes)?`Sizes: tops ${z.tops||"not given"}, bottoms ${z.bottoms||"not given"}, shoes ${z.shoes||"not given"}.`:"",typeof sizeText==="function"?sizeText():""].filter(Boolean).join(" ")}
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
 function sampleErr(e){const c=e&&e.code;return c==="bad_key"||c==="not_granted"?"Google rejected your Gemini key. Check it in You → Settings.":c==="rate_limited"?"Today's free Gemini limit is used up. Try again tomorrow.":c==="bad_model"?"That Gemini model isn't available. Change it in You → Settings.":c==="invalid_json"?"The answer came back garbled. Try again.":c==="network"?"Couldn't reach Gemini. Check your connection.":c==="cancelled"?"Stopped.":"Gemini couldn't answer"+(e&&e.message?": "+e.message:".")}
 
@@ -278,7 +278,7 @@ const LEGACY={street:"streetwear",grisch:"grisch",cozy:"cozy",all:"all"};
 const ATLAS_CATS=["Garments","Shoes","Boots","Accessories","Where to shop"];
 function marked(kind){return S.marks.filter(m=>m.mark===kind).map(m=>m.brand)}
 // Shared catalog + brands the user added + brands Gemini picked for them
-function allBrands(){const m=new Map();for(const r of CATALOG)m.set(r.b,r);
+function allBrands(){const m=new Map();for(const r of CATALOG)m.set(r.b,r);for(const r of S.pool)if(!m.has(r.b))m.set(r.b,{...r,pool:true});
   for(const r of (S.ai?.picks||[]))m.set(r.b,{...(m.get(r.b)||r),ai:true,why:r.why,s:[...new Set([...(m.get(r.b)?.s||[]),...(r.s||[])])]});
   for(const r of S.mybrands)m.set(r.b,{...r,custom:true});return [...m.values()]}
 function myAtlas(){const st=new Set(userStyles()),hidden=new Set(marked("hide"));
@@ -332,6 +332,7 @@ function renderGaps(){const g=curGaps(),box=$("g-list");const list=liveGaps();$(
       <p class="rot-line">${esc((x.why||"").charAt(0).toLowerCase()+(x.why||"").slice(1))}</p>
       ${(x.pins||x.unlocks)?`<div class="gap-stats">${x.pins?`<span><b>${+x.pins}</b> of your pins</span>`:""}${x.unlocks?`<span><b>${+x.unlocks}+</b> new fits with your closet</span>`:""}</div>`:""}
       ${x.size?`<span class="gap-size">Your size: ${esc(x.size)}</span>`:""}
+      ${(()=>{const t=window.SIZE?fitTips(x,brands):[];return t.length?`<p class="gap-fit">${t.map(([b,s])=>`<b>${esc(b)}</b>: ${esc(s)}`).join(" · ")}</p>`:""})()}
       ${brands.length?`<div class="brands">${brands.map(r=>`<button class="brand" data-go="${esc((r.s||["all"])[0])}|${esc(r.c)}|${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}
       <button class="atlas-link" data-go="${esc(x.atlasStyle||x.vibe||"")}|${esc(x.atlasCat||"")}|${esc(x.search||"")}">Browse ${esc(x.search||x.atlasCat||"this")} in Brands →</button>
       <div class="votes"><button class="btn ghost small" data-got="${esc(x.item)}">Bought it</button><button class="btn ghost small" data-skip="${esc(x.item)}">Not for me</button></div>
@@ -395,7 +396,8 @@ const focusSet=()=>new Set(S.prefs?.focus||[]);
 function starterSet(){const s=new Set();userStyles().forEach(k=>(STYLES[k].starter||[]).forEach(x=>s.add(x)));return s}
 function myPieces(){const st=new Set(userStyles()),f=focusSet();return PIECES.filter(p=>audOk(p.a)&&(f.has(p.key)||p.s.some(x=>st.has(x))))}
 function pieceStyle(p){const st=userStyles();return p.s.find(x=>st.includes(x))||p.s[0]}
-function sizeFor(p){const z=S.prefs?.sizes||{};return p.cat==="bottom"?z.bottoms||"":p.cat==="shoes"?z.shoes||"":["top","mid","outer"].includes(p.cat)?z.tops||"":""}
+function sizeFor(p){const z=S.prefs?.sizes||{};const typed=p.cat==="bottom"?z.bottoms||"":p.cat==="shoes"?z.shoes||"":["top","mid","outer"].includes(p.cat)?z.tops||"":"";
+  return typed||(window.SIZE?SIZE.forPiece(sizeCard(),p.cat):"")}
 function tagCounts(){const c={};S.inspo.forEach(p=>(p.tags||[]).forEach(k=>c[k]=(c[k]||0)+1));return c}
 // Newer pins count more (oldest ×0.75 → newest ×1.5), so the list follows where their taste is heading.
 function tagWeights(){const w={};const byAge=[...S.inspo].filter(p=>(p.tags||[]).length).sort((a,b)=>(a.created||0)-(b.created||0));const n=byAge.length;
@@ -456,9 +458,9 @@ function applyStyleColors(){let l="",d="";for(const [k,v] of Object.entries(STYL
   el.textContent=`:root{${l}}@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${d}}}:root[data-theme="dark"]{${d}}`}
 applyStyleColors();
 const stColor=k=>k==="all"?"var(--ink)":`var(--st-${k})`;
-const B={style:"all",cat:null,tier:null,tag:null,mine:false,hidden:false,allPrices:false,q:""};
-try{const s=JSON.parse(localStorage.getItem("rot-brands2")||"null");if(s)Object.assign(B,s,{q:""})}catch{}
-function saveB(){try{localStorage.setItem("rot-brands2",JSON.stringify({style:B.style,cat:B.cat,tier:B.tier,tag:B.tag,mine:B.mine,allPrices:B.allPrices}))}catch{}}
+const B={style:"all",cat:null,tier:null,tag:null,region:null,mine:false,hidden:false,allPrices:false,q:"",more:{}};
+try{const s=JSON.parse(localStorage.getItem("rot-brands2")||"null");if(s)Object.assign(B,s,{q:"",more:{}})}catch{}
+function saveB(){try{localStorage.setItem("rot-brands2",JSON.stringify({style:B.style,cat:B.cat,tier:B.tier,tag:B.tag,region:B.region,mine:B.mine,allPrices:B.allPrices}))}catch{}}
 function brandStem(n){const t=normTxt(n.split("/")[0]).split(" ");let s="";for(const w of t){s=(s?s+" ":"")+w;if(s.replace(/ /g,"").length>=4)break}return s}
 function closetBrands(){const txt=" "+S.items.map(i=>normTxt(i.name+" "+(i.notes||"")+" "+(i.fitNotes||""))).join(" | ")+" ";
   const out=new Set();for(const r of allBrands()){if(r.c==="Where to shop")continue;const s=brandStem(r.b);if(s.length>=4&&txt.includes(" "+s+" "))out.add(r.b)}return [...out]}
@@ -468,7 +470,11 @@ function renderMix(){renderBrandCount();const keys=userStyles(),c={};keys.forEac
   $("b-mix").innerHTML=(tot?`<span>Closet mix ${keys.map(k=>`<b>${esc(styleName(k))} ${Math.round(c[k]/tot*100)}%</b>`).join(" · ")}</span>`:"")+
     `<span><b>${myAtlas().length}</b> brands in your atlas</span><span><b>${own}</b> you own</span><span><b>${lst}</b> on your next-buys list</span>`}
 function bChips(id,key,vals,lab){$(id).innerHTML=`<button class="b-chip" data-v="" aria-pressed="${B[key]===null}">Any</button>`+vals.map(v=>`<button class="b-chip" data-v="${esc(v)}" aria-pressed="${String(B[key])===String(v)}">${esc(lab?lab(v):v)}</button>`).join("");
-  $(id).querySelectorAll("button").forEach(b=>b.onclick=()=>{const v=b.dataset.v;B[key]=v===""?null:(key==="tier"?+v:v);saveB();renderBrands()})}
+  $(id).querySelectorAll("button").forEach(b=>b.onclick=()=>{const v=b.dataset.v;B[key]=v===""?null:(key==="tier"?+v:v);B.more={};saveB();renderBrands()})}
+const flagOf=cc=>/^[A-Z]{2}$/.test(cc||"")?String.fromCodePoint(...[...cc].map(c=>127397+c.charCodeAt(0))):"";
+const countryOf=r=>(typeof COUNTRIES!=="undefined"&&COUNTRIES[r.cc])||"";
+const regionName=k=>(REGIONS.find(x=>x[0]===k)||[,k])[1];
+const BRAND_RANK=new Map(CATALOG.map((r,i)=>[r.b,i]));
 function brandCard(r,{own,want,onList,hiddenView,sc}){const k=brandKey(r.b),m=S.marks.find(x=>x.id===k)?.mark;
   const pill=own.has(r.b)?`<span class="b-pill">You own</span>`:onList.has(r.b)?`<span class="b-pill want">On your list</span>`:want.has(r.b)?`<span class="b-pill want">Want</span>`:r.custom?`<span class="b-pill want">Added by you</span>`:"";
   const acts=hiddenView?`<button data-k="${k}" data-b="${esc(r.b)}" data-m="hide" aria-pressed="true">Show again</button>`:
@@ -476,8 +482,8 @@ function brandCard(r,{own,want,onList,hiddenView,sc}){const k=brandKey(r.b),m=S.
     `<button data-k="${k}" data-b="${esc(r.b)}" data-m="own" aria-pressed="${m==="own"}">Own</button><button data-k="${k}" data-b="${esc(r.b)}" data-m="want" aria-pressed="${m==="want"}">Want</button>${r.custom?`<button data-rmb="${esc(r.id||k)}">Remove</button>`:`<button data-k="${k}" data-b="${esc(r.b)}" data-m="hide" aria-pressed="false">Hide</button>`}`;
   return `<div class="b-item${onList.has(r.b)?" hit":""}" style="--sc:${sc}"><span class="nm">${esc(r.b)}</span><span class="tr">${TIER[r.t]||""}</span><span class="nt">${esc(r.n||"")}</span>
     ${r.why?`<span class="why">For you: ${esc(r.why)}</span>`:""}
-    <div class="ft"><span class="b-tag">${esc(r.k||"")}</span>${pill}<span class="b-mark">${acts}</span></div></div>`}
-function renderBrands(){if(!$("view-brands"))return;
+    <div class="ft"><span class="b-tag">${esc(r.k||"")}</span>${r.cc?`<span class="b-cc">${flagOf(r.cc)} ${esc(countryOf(r))}</span>`:""}${pill}<span class="b-mark">${acts}</span></div></div>`}
+function renderBrands(){if(!$("view-brands"))return;loadShared();
   const keys=userStyles();if(B.style!=="all"&&!keys.includes(B.style))B.style="all";
   const hiddenSet=new Set(marked("hide"));
   $("b-styles").innerHTML=[["all","All my styles"],...keys.map(k=>[k,styleName(k)])].map(([k,l])=>`<button class="b-style" data-s="${k}" style="--sc:${stColor(k)}" aria-pressed="${B.style===k&&!B.hidden}">${esc(l)}</button>`).join("")+
@@ -486,7 +492,7 @@ function renderBrands(){if(!$("view-brands"))return;
   $("b-styles").querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{B.style=b.dataset.s;B.hidden=false;saveB();renderBrands()});
   $("b-styles").querySelector("[data-mine]").onclick=()=>{B.mine=!B.mine;B.hidden=false;saveB();renderBrands()};
   const hb=$("b-styles").querySelector("[data-hid]");if(hb)hb.onclick=()=>{B.hidden=!B.hidden;renderBrands()};
-  bChips("b-cats","cat",ATLAS_CATS);bChips("b-tags","tag",TYPES);
+  bChips("b-cats","cat",ATLAS_CATS);bChips("b-tags","tag",TYPES);bChips("b-regions","region",REGIONS.map(x=>x[0]),regionName);
   const budget=S.prefs?.budget||3;
   $("b-tiers").innerHTML=[1,2,3].map(v=>`<button class="b-chip" data-v="${v}" aria-pressed="${B.tier===v}">${TIER[v]}</button>`).join("")+
     (budget<3?`<button class="b-chip" data-all="1" aria-pressed="${B.allPrices}">${B.allPrices?"Showing all prices":"Show pricier brands"}</button>`:"");
@@ -500,27 +506,36 @@ function renderBrands(){if(!$("view-brands"))return;
   const base=B.hidden?allBrands().filter(r=>hiddenSet.has(r.b)):myAtlas();
   const f=base.filter(r=>(B.hidden||B.style==="all"||(r.s||[]).includes(B.style)||(r.s||[]).includes("all")||r.custom)&&(!B.cat||r.c===B.cat)&&(!B.tier||r.t===B.tier)
     &&(B.hidden||B.allPrices||B.tier||B.mine||r.t<=budget||r.k==="Buy used"||r.custom||r.ai||own.has(r.b)||want.has(r.b))
-    &&(!B.tag||r.k===B.tag)&&(!q||normTxt(r.b+" "+(r.n||"")+" "+(r.why||"")).includes(q))&&(B.hidden||!B.mine||own.has(r.b)||want.has(r.b)||onList.has(r.b)||r.custom));
+    &&(!B.tag||r.k===B.tag)&&(!B.region||REGION_OF[r.cc]===B.region)&&(!q||normTxt(r.b+" "+(r.n||"")+" "+(r.why||"")+" "+countryOf(r)).includes(q))&&(B.hidden||!B.mine||own.has(r.b)||want.has(r.b)||onList.has(r.b)||r.custom));
   $("b-count").textContent=f.length+" brand"+(f.length===1?"":"s");
   const L=$("b-list");
   if(!f.length){L.innerHTML=`<p class="muted" style="padding:20px 0">${B.mine?"Nothing marked yet. Tap Own or Want on a brand, or build your next-buys list.":"No brands match those filters. Set one back to Any."}</p>`;return}
   const ctx={own,want,onList,hiddenView:B.hidden};
-  const section=(title,blurb,sc,rows)=>`<section class="b-sec" style="--sc:${sc}"><div class="b-head"><h2>${esc(title)}</h2>${blurb?`<p>${esc(blurb)}</p>`:""}</div>`+
-    ATLAS_CATS.map(c=>{const g=rows.filter(r=>r.c===c);if(!g.length)return "";return `<p class="b-h3">${c} · ${g.length}</p><div class="b-grid">`+g.map(r=>brandCard(r,{...ctx,sc})).join("")+`</div>`}).join("")+`</section>`;
+  // Your marks first, then the hand-picked originals, then the rest of the world list in catalog order
+  const rank=r=>(own.has(r.b)||want.has(r.b)||onList.has(r.b)?0:r.ai||r.custom?1:2)*1e5+(BRAND_RANK.get(r.b)??9e4);
+  const PAGE=12;
+  const section=(title,blurb,sc,rows,id)=>{rows=rows.slice().sort((a,b)=>rank(a)-rank(b));
+    return `<section class="b-sec" style="--sc:${sc}"><div class="b-head"><h2>${esc(title)}</h2>${blurb?`<p>${esc(blurb)}</p>`:""}</div>`+
+    ATLAS_CATS.map(c=>{const g=rows.filter(r=>r.c===c);if(!g.length)return "";const key=(id||title)+"|"+c,lim=B.more[key]||PAGE,left=g.length-lim;
+      return `<p class="b-h3">${c} · ${g.length}</p><div class="b-grid">`+g.slice(0,lim).map(r=>brandCard(r,{...ctx,sc})).join("")+
+      (left>0?`<button class="btn ghost small b-more" data-more="${esc(key)}">Show ${Math.min(left,PAGE*2)} more · ${left} left</button>`:"")+`</div>`}).join("")+`</section>`};
   let html="",used=new Set();
   if(B.hidden){html=section("Hidden brands","Brands you hid. Tap Show again to bring one back.","var(--muted)",f)}
   else{
+    html+=trendSection();
     const picks=f.filter(r=>r.ai);if(picks.length){picks.forEach(r=>used.add(r.b));html+=section("Picked for you",S.ai?.summary||"Chosen by Gemini from your styles, pins and closet.","var(--accent)",picks)}
     const mine=f.filter(r=>r.custom&&!used.has(r.b));if(mine.length){mine.forEach(r=>used.add(r.b));html+=section("Added by you","","var(--accent)",mine)}
-    for(const k of (B.style==="all"?keys:[B.style])){const rows=f.filter(r=>!used.has(r.b)&&(r.s||[]).includes(k));rows.forEach(r=>used.add(r.b));if(rows.length)html+=section(styleName(k),STYLES[k].blurb,stColor(k),rows)}
+    for(const k of (B.style==="all"?keys:[B.style])){const rows=f.filter(r=>!used.has(r.b)&&(r.s||[]).includes(k));rows.forEach(r=>used.add(r.b));if(rows.length)html+=section(styleName(k),STYLES[k].blurb,stColor(k),rows,k)}
     const shops=f.filter(r=>!used.has(r.b)&&(r.s||[]).includes("all"));if(shops.length)html+=section("Where to shop","Stores, outlets and resale sites that cover every style.","var(--ink)",shops);
   }
   L.innerHTML=html;
+  L.querySelectorAll("[data-trend]").forEach(b=>b.onclick=()=>{B.q=b.dataset.trend;$("b-q").value=B.q;B.region=null;B.tag=null;B.cat=null;B.style="all";B.allPrices=true;renderBrands();$("b-q").scrollIntoView({block:"center"})});
+  L.querySelectorAll("[data-more]").forEach(b=>b.onclick=()=>{const k=b.dataset.more;B.more[k]=(B.more[k]||PAGE)+PAGE*2;const y=scrollY;renderBrands();scrollTo(0,y)});
   L.querySelectorAll("[data-m]").forEach(b=>b.onclick=async()=>{if(!db){toast("Can't save in this view.");return}
     const cur=S.marks.find(x=>x.id===b.dataset.k)?.mark;try{if(cur===b.dataset.m)await db.doc("brandmarks/"+b.dataset.k).delete();
       else await db.doc("brandmarks/"+b.dataset.k).set({brand:b.dataset.b,mark:b.dataset.m,at:Date.now()});if(b.dataset.m==="hide"&&cur!=="hide")toast("Hidden. Find it under Hidden to bring it back.")}catch{toast("Couldn't save that.")}});
   L.querySelectorAll("[data-rmb]").forEach(b=>b.onclick=async()=>{try{await db.doc("mybrands/"+b.dataset.rmb).delete();toast("Removed from your atlas.")}catch{toast("Couldn't remove it.")}})}
-$("b-q").addEventListener("input",e=>{B.q=e.target.value;renderBrands()});
+let bqT=null;$("b-q").addEventListener("input",e=>{B.q=e.target.value;B.more={};clearTimeout(bqT);bqT=setTimeout(renderBrands,120)});
 function renderKits(){const keys=userStyles(),atlas=myAtlas(),budget=S.prefs?.budget||3;
   $("b-kits").innerHTML=keys.map(k=>{const items=(STYLES[k].starter||[]).map(x=>PIECE[x]).filter(p=>p&&audOk(p.a));
     return `<div class="box" style="border-top:3px solid ${stColor(k)}"><h4>${esc(styleName(k))} starter kit</h4><ol>${items.map(p=>{const b=p.brands.find(n=>atlas.some(r=>r.b===n&&(r.t<=budget||r.k==="Buy used")))||p.brands.find(n=>atlas.some(r=>r.b===n));return `<li>${esc(p.label)}${b?` <span class="muted">(${esc(b)})</span>`:""}</li>`}).join("")}</ol></div>`}).join("")+
@@ -531,7 +546,8 @@ $("bf-close").onclick=()=>$("brandsheet").hidden=true;
 $("brandsheet").addEventListener("click",e=>{if(e.target.id==="brandsheet")$("brandsheet").hidden=true});
 $("bf").onsubmit=async e=>{e.preventDefault();const name=$("bf-name").value.trim();if(!name){$("bf-msg").textContent="Give it a name.";return}if(!db)return;
   const st=$("bf-style").value;const doc={b:name,c:st==="all"?"Where to shop":$("bf-cat").value,t:+$("bf-tier").value,k:"Mine",n:$("bf-note").value.trim(),s:[st],a:"u",at:Date.now()};
-  try{await db.doc("mybrands/"+brandKey(name)).set(doc);$("brandsheet").hidden=true;toast("Added to your atlas.")}catch{$("bf-msg").textContent="Couldn't save it. Try again."}};
+  try{await db.doc("mybrands/"+brandKey(name)).set(doc);$("brandsheet").hidden=true;toast("Added to your atlas.");
+    if($("bf-share").checked&&!CATALOG.some(r=>normTxt(r.b)===normTxt(name))){const sh=await claude.use("shared");if(sh)sh.from("brand_suggestions").insert({b:name,c:doc.c,t:doc.t,n:doc.n,s:doc.s.filter(x=>x!=="all"),a:"u"}).then(()=>{},()=>{})}}catch{$("bf-msg").textContent="Couldn't save it. Try again."}};
 // Gemini-curated picks
 async function aiAtlas(){const keys=userStyles(),pins=tagCounts();
   const topPins=Object.entries(pins).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,c])=>`${PIECE[k]?.short||k} ×${c}`).join(", ");
@@ -541,11 +557,11 @@ ${S.profile?`Their style profile from saved inspo: ${S.profile.summary}`:""}
 ${topPins?`Pieces that keep showing up in their saved pins: ${topPins}.`:""}
 Their closet: ${S.items.map(i=>i.name).join("; ")||"(empty so far)"}
 ${own.length?`Brands they own: ${own.join(", ")}.`:""} ${want.length?`Brands they want: ${want.join(", ")}.`:""} ${hidden.length?`Brands they hid (never suggest): ${hidden.join(", ")}.`:""}
-Suggest 20 to 30 brands that fit this person specifically: a mix of well-known, niche and newer labels, mostly within their budget, plus a few resale picks for pricier pieces. Include brands outside the obvious ones. Only real, currently operating brands.
-Reply with only JSON: {"summary": one sentence on how you tailored the list, "picks": [{"brand": name, "category": "Garments"|"Shoes"|"Boots"|"Accessories"|"Where to shop", "price": 1|2|3, "type": "Tested"|"Niche"|"Rising"|"Buy used", "style": one of ${JSON.stringify([...keys,"all"])}, "note": one short sentence on what to buy there, "why": one short sentence tying it to their taste}]}`;
+Suggest 20 to 30 brands that fit this person specifically: a mix of well-known, niche and newer labels, mostly within their budget, plus a few resale picks for pricier pieces. Include brands outside the obvious ones, from anywhere in the world, not just the US and Europe. Only real, currently operating brands.
+Reply with only JSON: {"summary": one sentence on how you tailored the list, "picks": [{"brand": name, "category": "Garments"|"Shoes"|"Boots"|"Accessories"|"Where to shop", "price": 1|2|3, "type": "Tested"|"Niche"|"Rising"|"Buy used"|"Retailer", "style": one of ${JSON.stringify([...keys,"all"])}, "country": 2-letter ISO code where the brand is based, "note": one short sentence on what to buy there, "why": one short sentence tying it to their taste}]}`;
   const r=await sample.json(prompt,{cache:false,modelTier:"complex"});if(!Array.isArray(r.picks))throw{code:"invalid_json"};
   const picks=r.picks.filter(p=>p&&p.brand).slice(0,32).map(p=>({b:String(p.brand).slice(0,80),c:ATLAS_CATS.includes(p.category)?p.category:"Garments",t:[1,2,3].includes(+p.price)?+p.price:2,
-    k:TYPES.includes(p.type)?p.type:"Rising",s:[keys.includes(p.style)||p.style==="all"?p.style:keys[0]],a:"u",n:String(p.note||"").slice(0,200),why:String(p.why||"").slice(0,200)}));
+    k:TYPES.includes(p.type)?p.type:"Rising",s:[keys.includes(p.style)||p.style==="all"?p.style:keys[0]],a:"u",cc:/^[A-Z]{2}$/.test(String(p.country||"").toUpperCase())?String(p.country).toUpperCase():undefined,n:String(p.note||"").slice(0,200),why:String(p.why||"").slice(0,200)}));
   await db.doc("aiatlas/latest").set({summary:String(r.summary||"").slice(0,240),picks,at:Date.now()})}
 $("b-ai-go").onclick=async()=>{if(!sample)return;$("b-ai-go").disabled=true;$("b-ai-status").textContent="Gemini is picking brands for you… this can take a minute.";
   try{await aiAtlas();$("b-ai-status").textContent="Done. Your picks are at the top.";B.style="all";B.mine=false;B.hidden=false;renderBrands()}
@@ -668,11 +684,64 @@ function drawYou(body){if(!window.ROT||!$("you-rot"))return;const o=rotOutfit||R
   ROT.render($("you-rot"),o,{scale:2,seed:7,glitch:true,body:rotBody(body)});
   const owned=o.detail?o.detail.filter(d=>d.owned).length:0,pinned=o.detail?o.detail.filter(d=>d.pinned&&!d.owned).length:0;
   $("you-rot-note").textContent=`${owned} piece${owned===1?"":"s"} from your closet, ${pinned} from your pins. style: ${styleName(mainStyle()).toLowerCase()}.`}
-function openYou(){fillBodyForm();drawYou()}
+function openYou(){fillBodyForm();fillSizeForm();drawYou()}
 function closeYou(){}
 ["b-ft","b-in","b-lb","b-build","b-sh","b-prop"].forEach(id=>$(id).addEventListener("input",()=>{clearTimeout(yT);yT=setTimeout(()=>drawYou(readBodyForm()),80)}));
 $("b-save").onclick=async()=>{if(!db){toast("Can't save in this view.");return}const b=readBodyForm();$("b-save").disabled=true;
   try{await db.doc("body/me").set({...b,at:Date.now()});toast("Build saved")}catch{toast("Couldn't save. Try again.")}finally{$("b-save").disabled=false}};
+
+/* ---------- sizes ---------- */
+const Z_IDS=["z-cut","z-unit","z-fit","z-chest","z-waist","z-hips","z-inseam","z-shoe","z-shoesys"];
+function sizeDefaults(){return {cut:shopFor()==="womens"?"womens":"mens",unit:"in",fit:"regular",chest:"",waist:"",hips:"",inseam:"",shoe:{sys:shopFor()==="womens"?"USW":"USM",v:""}}}
+function readSizeForm(){return {cut:$("z-cut").value,unit:$("z-unit").value,fit:$("z-fit").value,chest:$("z-chest").value,waist:$("z-waist").value,hips:$("z-hips").value,inseam:$("z-inseam").value,shoe:{sys:$("z-shoesys").value,v:$("z-shoe").value.trim()}}}
+function fillSizeForm(){const m=Object.assign(sizeDefaults(),S.sizes||{});["cut","unit","fit","chest","waist","hips","inseam"].forEach(k=>$("z-"+k).value=m[k]??"");
+  $("z-shoe").value=m.shoe?.v||"";$("z-shoesys").value=m.shoe?.sys||"USM";$("z-state").textContent=S.sizes?"Saved. Next buys show these sizes.":"";renderSizeCard(m);renderFitRefs()}
+function heightIn(){return S.body?dims(S.body).inches:null}
+function sizeCard(m){m=m||S.sizes;return m&&window.SIZE?SIZE.compute(m,heightIn()):null}
+function renderSizeCard(m){const c=sizeCard(m),box=$("z-card");if(!box)return;$("z-chest-l").textContent=(m||{}).cut==="womens"?"Bust":"Chest";
+  if(!c||(!c.tops&&!c.bottoms&&!c.shoes)){box.innerHTML=`<p class="muted" style="font-size:.9rem">Fill in any measurement to see your sizes.</p>`;return}
+  const w=c.cut==="womens",rows=[];
+  if(c.tops)rows.push(["Tops",c.tops.US.replace(" / "," "),c.tops.UK,c.tops.EU,c.tops.JP,c.tops.KR]);
+  if(c.tops&&!w)rows.push(["Jackets",c.tops.suit,c.tops.suit,c.tops.suitEU,c.tops.JP,c.tops.KR]);
+  if(c.dress)rows.push(["Dresses",c.dress.US.replace(" / "," "),c.dress.UK,c.dress.EU,c.dress.JP,c.dress.KR]);
+  if(c.bottoms)rows.push(w?["Jeans",c.bottoms.denim,c.bottoms.UK,c.bottoms.EU,c.bottoms.JP,c.bottoms.KR]:["Pants",c.bottoms.US,c.bottoms.UK,c.bottoms.EU,c.bottoms.JP,c.bottoms.KR]);
+  if(c.shoes)rows.push(["Shoes",w?`${c.shoes.USW}W`:`${c.shoes.USM}`,c.shoes.UK,c.shoes.EU,c.shoes.JP.replace(" cm",""),c.shoes.KR]);
+  box.innerHTML=`<div class="z-table-wrap"><table class="z-table"><thead><tr><th></th><th>US</th><th>UK</th><th>EU</th><th>JP</th><th>KR</th></tr></thead><tbody>${rows.map(r=>`<tr><th>${r[0]}</th>${r.slice(1).map((v,i)=>`<td${i===0?' class="main"':""}>${esc(String(v??""))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`+
+    `<ul class="z-notes">${[c.tops?.wear?`For your oversized fit, buy tops in ${c.tops.wear}.`:"",...c.notes.filter(n=>!/^You like it oversized/.test(n)||!c.tops?.wear),w&&c.bottoms?.L?`Inseam about ${c.bottoms.L}": shop ${c.bottoms.len} lengths.`:"",w&&c.tops?`Italian sizes run 4 above EU: tops IT ${c.tops.IT}.`:"","Japanese and Korean labels often run small. If you're between sizes there, go up.","Charts are averages. Sizes you add below beat the chart for that brand."].filter(Boolean).map(n=>`<li>${esc(n)}</li>`).join("")}</ul>`}
+Z_IDS.forEach(id=>$(id).addEventListener("input",()=>renderSizeCard(readSizeForm())));
+$("z-save").onclick=async()=>{if(!db){toast("Can't save in this view.");return}$("z-save").disabled=true;
+  try{await db.doc("sizes/me").set({...readSizeForm(),at:Date.now()});toast("Sizes saved")}catch{toast("Couldn't save. Try again.")}finally{$("z-save").disabled=false}};
+function renderFitRefs(){const l=$("zr-list");if(!l)return;const kinds={tops:"Tops",bottoms:"Bottoms",shoes:"Shoes"},fits={right:"fits right",small:"ran small",big:"ran big"};
+  l.innerHTML=S.fitref.length?S.fitref.map(r=>`<li><span><b>${esc(r.brand)}</b> · ${esc(kinds[r.kind]||r.kind)} · ${esc(r.size)} <span class="muted">· ${fits[r.fit]||""}</span></span><button class="btn ghost small" data-rmz="${esc(r.id)}">Remove</button></li>`).join(""):`<li class="muted" style="border-style:dashed">Nothing yet. Try your best-fitting jeans and sneakers.</li>`;
+  l.querySelectorAll("[data-rmz]").forEach(b=>b.onclick=async()=>{try{await db.doc("fitref/"+b.dataset.rmz).delete()}catch{toast("Couldn't remove it.")}})}
+$("zr-form").onsubmit=async e=>{e.preventDefault();if(!db)return;const brand=$("zr-brand").value.trim(),size=$("zr-size").value.trim();
+  if(!brand||!size){toast("Add a brand and a size.");return}const an=t=>String(t).toLowerCase().replace(/[^a-z0-9]/g,""),known=allBrands().find(r=>an(r.b)===an(brand));
+  try{await db.collection("fitref").doc().set({brand:known?known.b:brand,kind:$("zr-kind").value,size,fit:$("zr-fit").value,at:Date.now()});
+    $("zr-brand").value="";$("zr-size").value="";toast("Saved. Rotation will use it for "+brand+".")}catch{toast("Couldn't save that.")}};
+function fitTips(x,brands){const card=sizeCard(),p=PIECES.find(q=>q.label===x.item);const cat=p?.cat||({Shoes:"shoes",Boots:"shoes"}[x.atlasCat])||"top";
+  return brands.map(r=>[r.b,SIZE.brandTip(r,cat,card,S.fitref)]).filter(t=>t[1]).slice(0,3)}
+function sizeText(){const c=sizeCard();if(!c)return "";const a=[];if(c.tops)a.push(`tops ${c.tops.US}`);if(c.bottoms)a.push(c.cut==="womens"?`jeans ${c.bottoms.denim}`:`pants ${c.bottoms.US}`);if(c.shoes)a.push(`shoes ${c.shoes.main}`);
+  const refs=S.fitref.slice(0,8).map(r=>`${r.brand} ${r.size} (${r.fit==="right"?"fits":r.fit==="small"?"ran small":"ran big"})`);
+  return (a.length?`From their measurements they wear ${a.join(", ")}, and like a ${c.fit} fit.`:"")+(refs.length?` Sizes they own: ${refs.join("; ")}.`:"")}
+
+/* ---------- shared brand signals (collectors) ---------- */
+let trendsAt=0;
+async function loadShared(force){if(!force&&Date.now()-trendsAt<30*60e3)return;trendsAt=Date.now();
+  let sh=null;try{sh=await claude.use("shared")}catch{}if(!sh)return;
+  try{const [t,p]=await Promise.all([sh.from("brand_trends").select("*").limit(400),sh.from("brand_suggestions").select("b,c,t,n,s,a,cc").eq("approved",true).limit(2000)]);
+    if(!t.error)S.trends=t.data||[];if(!p.error)S.pool=(p.data||[]).map(r=>({...r,k:"Rising",s:(r.s&&r.s.length?r.s:["all"])}));
+    if(S.tab==="brands")renderBrands()}catch{}}
+function trendSection(){const T=S.trends||[];if(!T.length||B.hidden||B.mine||B.q)return "";
+  const keys=new Set(userStyles()),byName=new Map(allBrands().map(r=>[r.b,r]));
+  const score=t=>t.week*2+Math.max(0,t.week-t.prev_week)*3+Math.max(0,+t.growth_30d||0);
+  const rows=T.map(t=>({...t,r:byName.get(t.brand)})).filter(t=>t.r&&audOk(t.r.a)&&(!B.region||REGION_OF[t.r.cc]===B.region)&&(t.week>0||+t.growth_30d>0))
+    .sort((a,b)=>((b.r.s||[]).some(x=>keys.has(x))-(a.r.s||[]).some(x=>keys.has(x)))||score(b)-score(a)).slice(0,10);
+  if(!rows.length)return "";
+  const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e3?Math.round(n/1e3)+"K":String(n);
+  return `<section class="b-sec" style="--sc:var(--accent)"><div class="b-head"><h2>Trending this week</h2><p>Brands people are talking about on Reddit and fashion sites, and accounts growing fastest on Instagram. Tap one to find it.</p></div><div class="trend-list">`+
+    rows.map(t=>`<div class="trend"><button class="tn" data-trend="${esc(t.r.b)}">${flagOf(t.r.cc)} ${esc(t.r.b)}</button>
+      <span class="ts">${t.week?`<b>${t.week}</b> mention${t.week>1?"s":""}${t.week>t.prev_week?` <span class="upw">▲ ${t.prev_week?"from "+t.prev_week:"new"}</span>`:""}`:""}${t.followers?`${t.week?" · ":""}${fmt(t.followers)} followers${t.growth_30d!=null?` <span class="upw">${+t.growth_30d>=0?"+":""}${t.growth_30d}%</span>`:""}`:""}</span>
+      ${t.top_url?`<a href="${esc(t.top_url)}" target="_blank" rel="noopener">${esc(t.top_title||"Top post")}</a>`:""}</div>`).join("")+`</div></section>`}
 
 /* ---------- saved ---------- */
 function renderSaved(){$("n-saved").textContent=S.fits.length;const l=$("s-list");
@@ -705,6 +774,8 @@ renderAll();RP.renderSettings();renderRot();const HASH_TAB=(location.hash||"").s
   sub(db.collection("feedback").orderBy("at","desc").limit(60),"feedback",()=>{});
   db.collection("profile").orderBy("at","desc").limit(1).onSnapshot(q=>{S.profile=q.docs[0]?q.docs[0].data():null;renderInspo()},()=>{});
   db.collection("gaps").orderBy("at","desc").limit(1).onSnapshot(q=>{S.gaps=q.docs[0]?q.docs[0].data():null;renderGaps();if(S.tab==="brands")renderBrands();if(S.tab==="buys")maybeAutoRefresh()},()=>{});
+  db.doc("sizes/me").onSnapshot(d=>{S.sizes=d.exists?d.data():null;if(!sample)renderGaps();if(S.tab==="you")fillSizeForm()},()=>{});
+  sub(db.collection("fitref"),"fitref",()=>{renderFitRefs();renderGaps()});
   db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;renderRot();if(S.tab==="you")fillBodyForm()},()=>{});
   // New here? Ask the style quiz once the account's data has had a chance to sync down.
   await RP.firstSync;if(!S.prefs)openOnboard();

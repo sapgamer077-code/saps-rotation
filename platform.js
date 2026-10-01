@@ -498,7 +498,7 @@ create policy "own photos remove" on storage.objects for delete to authenticated
   }
 
   /* ---------- public surface ---------- */
-  window.claude = { use: async name => { await ready; return name === "db" ? db : name === "assets" ? assets : name === "sample" ? makeSample() : null } };
+  window.claude = { use: async name => { await ready; return name === "db" ? db : name === "assets" ? assets : name === "sample" ? makeSample() : name === "shared" ? (cloudReady() ? sb : null) : null } };
   window.RP = { srcFor, getBlob, syncNow, renderSettings, firstSync, get aiOn() { return !!cfg.geminiKey } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 

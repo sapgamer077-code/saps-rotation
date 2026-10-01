@@ -1,7 +1,7 @@
 /* Rotation — offline support. Bump VERSION on every release so phones pick up the new files. */
-const VERSION = "rotation-2026-09-30-5";
+const VERSION = "rotation-2026-10-01-1";
 const SHELL = [
-  "./", "index.html", "theme.css", "app.js", "catalog.js", "rot.js", "platform.js", "config.js", "manifest.webmanifest",
+  "./", "index.html", "theme.css", "app.js", "catalog.js", "rot.js", "size.js", "platform.js", "config.js", "manifest.webmanifest",
   "supabase.js",
   "icon-192.png", "icon-512.png", "apple-touch-icon.png",
 ];
@@ -33,10 +33,11 @@ self.addEventListener("fetch", e => {
 
   // App files: network first (so updates land right away), cached copy when offline.
   if (url.origin === self.location.origin) {
-    e.respondWith(fetch(req).then(r => {
+    // no-cache: always check with the server first, so a new release never mixes with old files from the browser cache
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(r => {
       if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)) }
       return r;
-    }).catch(async () => (await caches.match(req)) || (req.mode === "navigate" ? caches.match("index.html") : Response.error())));
+    }).catch(async () => (await caches.match(req, { ignoreSearch: true })) || (req.mode === "navigate" ? caches.match("index.html") : Response.error())));
   }
   // Everything else (Supabase, Gemini) goes straight to the network.
 });
