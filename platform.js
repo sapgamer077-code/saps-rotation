@@ -201,7 +201,7 @@
   function hydrate(img) {
     const s = img.getAttribute("src") || ""; if (!s.startsWith("blob-id:")) return;
     const id = s.slice(8); img.dataset.bid = id; img.removeAttribute("src"); img.style.visibility = "hidden";
-    getBlob(id).then(b => { if (!b || img.dataset.bid !== id) return; let u = urls.get(id); if (!u) { u = URL.createObjectURL(b); urls.set(id, u) } img.src = u; img.style.visibility = "" });
+    getBlob(id).then(b => { if (img.dataset.bid !== id) return; if (!b) { img.dispatchEvent(new Event("error")); return } let u = urls.get(id); if (!u) { u = URL.createObjectURL(b); urls.set(id, u) } img.src = u; img.style.visibility = "" });
   }
   new MutationObserver(ms => {
     for (const m of ms) {

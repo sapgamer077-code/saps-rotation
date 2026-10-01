@@ -39,7 +39,7 @@ function renderFilters(){const opts=[["all","All"],...CATS.map(([v,l])=>[v,l.spl
   $("c-filters").innerHTML=opts.map(([v,l])=>`<button data-f="${v}" aria-pressed="${S.filter===v}">${esc(l)}</button>`).join("");
   $("c-filters").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.filter=b.dataset.f;renderCloset()});}
 function tagCard(it){return `<button class="tagcard${it.wash?" wash":""}" data-id="${esc(it.id)}"><span class="hole"></span>${it.wash?'<span class="flag">In wash</span>':""}${it.body?'<span class="bodydot">On-body ✓</span>':""}
-  <span class="ph duo">${it.flat?`<img src="${src(it.flat)}" alt="" loading="lazy">`:it.body?`<img src="${src(it.body)}" alt="" loading="lazy">`:`<span class="none">No photo yet</span>`}</span>
+  <span class="ph duo">${it.flat||it.body?`<img src="${src(it.flat||it.body)}" alt="" loading="lazy" onerror="this.outerHTML='<span class=&quot;none&quot;>Photo missing. Tap to add it again.</span>'">`:`<span class="none">No photo yet</span>`}</span>
   <span class="meta"><span class="label">${esc(CATNAME[it.cat]||it.cat)} · ${esc(it.sil)} · ${esc(it.len)}</span><span class="name">${esc(it.name)}</span><span class="muted" style="font-size:.85rem">${esc(it.color||"")}</span>${wornLabel(it)}</span></button>`}
 function renderCloset(){renderFilters();$("n-closet").textContent=S.items.length;
   const box=$("c-body");
@@ -75,10 +75,7 @@ for(const k of ["flat","body"])$("f-"+k).onchange=async e=>{const f=e.target.fil
   else if(!sample)$("f-status").textContent="No Gemini key on this device, so fill it in by hand, or add your key in You → Settings and pick the photo again."};
 
 // Gemini identifies the piece (brand, model, color) from the photos and fills in the tags
-async function identifyPiece(auto){
-  const flat=S.pending.flat||(S.editing?.flat&&await blobFor(S.editing.flat));const body=S.pending.body||(S.editing?.body&&await blobFor(S.editing.body));
-  const imgs=[flat,body].filter(Boolean);if(!imgs.length){$("f-status").textContent="Add a photo first.";return}
-  $("f-status").textContent=auto?"ROT is identifying it…":"Looking at the photos…";$("f-auto").disabled=true;
+async function geminiIdentify(flat,body){const imgs=[flat,body].filter(Boolean);
   const desc=flat&&body?`Image 1 is the item laid flat or on a hanger. Image 2 is the item worn by its owner (${bodyText()}).`:flat?"The image is the item laid flat or on a hanger.":`The image shows the item worn by its owner (${bodyText()}).`;
   const prompt=`You identify and tag clothing for a personal wardrobe app. ${desc}
 First identify it like a vintage dealer would: read any visible logo, label, tag, patch, tab, hardware, stitching or signature design detail to work out the brand and the specific model or product line (for example "Levi's 501", "Carhartt WIP Detroit Jacket", "Timberland PRO 6-inch", "Uniqlo U crewneck"). You may search the web to confirm a model name. Only name a brand or model you can actually support from what's visible; otherwise leave it empty and describe the piece.
@@ -96,14 +93,19 @@ Reply with only a JSON object:
  "vibes": subset of ${JSON.stringify(userStyles())} (${styleDefs()}),
  "retail": typical new price in USD as a number, or null,
  "fitNotes": ${body?"one or two sentences on how it sits on their body: where hems land, drape, shoulder fit, leg shape, stacking":"\"\""}}`;
-  try{let r;try{r=await sample.json(prompt,{images:imgs.slice(0,imgMax||2),search:true,cache:false})}catch(e){if(e?.code==="bad_key")throw e;r=await sample.json(prompt,{images:imgs.slice(0,imgMax||2),cache:false})}
+  try{return await sample.json(prompt,{images:imgs.slice(0,imgMax||2),search:true,cache:false})}catch(e){if(e?.code==="bad_key")throw e;return await sample.json(prompt,{images:imgs.slice(0,imgMax||2),cache:false})}}
+async function identifyPiece(auto){
+  const flat=S.pending.flat||(S.editing?.flat&&await blobFor(S.editing.flat));const body=S.pending.body||(S.editing?.body&&await blobFor(S.editing.body));
+  const imgs=[flat,body].filter(Boolean);if(!imgs.length){$("f-status").textContent="Add a photo first.";return}
+  $("f-status").textContent=auto?"ROT is identifying it…":"Looking at the photos…";$("f-auto").disabled=true;
+  try{const r=await geminiIdentify(flat,body);
     const keep=auto&&S.editing;// editing an existing piece: only fill what's empty
     const put=(id,v)=>{if(v==null||v==="")return;if(keep&&$(id).value)return;$(id).value=v};
     put("f-name",r.name);if(CATNAME[r.cat]&&!(keep&&S.editing))$("f-cat").value=r.cat;put("f-color",r.color);
     if(["slim","regular","relaxed","oversized"].includes(r.sil)&&!keep)$("f-sil").value=r.sil;if(["cropped","regular","long"].includes(r.len)&&!keep)$("f-len").value=r.len;
     if([1,2,3].includes(+r.warmth)&&!keep)$("f-warm").value=String(+r.warmth);
     if(Array.isArray(r.vibes)&&!(keep&&FORMV.some(v=>$("fv-"+v).checked)))FORMV.forEach(v=>$("fv-"+v).checked=r.vibes.includes(v));
-    if(r.brand&&!$("f-brand").value){const b=findBrand(r.brand);$("f-brand").value=b&&normTxt(b.b).startsWith(normTxt(r.brand))?b.b.split(" / ")[0]:r.brand}
+    if(r.brand&&!$("f-brand").value){const b=findBrand(r.brand);$("f-brand").value=b&&normTxt(b.b)===normTxt(r.brand)?b.b:r.brand}
     if(r.fitNotes&&!$("f-fit").value)$("f-fit").value=r.fitNotes;
     if(+r.retail>0&&!$("f-notes").value)$("f-notes").value=`Retails around $${Math.round(+r.retail)} new.`;
     const who=[r.brand,r.model].filter(Boolean).join(" ");
@@ -1337,8 +1339,82 @@ function renderPrices(){const box=$("pw");if(!box)return;box.hidden=!sample;cons
   $("pw-alerts").querySelectorAll("[data-seen]").forEach(b=>b.onclick=async()=>{const a=S.pricealerts.find(x=>x.id===b.dataset.seen);if(a&&db)try{await db.doc("pricealerts/"+a.id).set({...a,id:undefined,seen:true})}catch{}})}
 $("pw-check").onclick=()=>checkPrices(true);
 
+/* ---------- add many pieces at once ---------- */
+const BK={rows:[],running:false};
+function bkRowHTML(r,i){const opts=CATS.map(([v,l])=>`<option value="${v}"${r.cat===v?" selected":""}>${esc(l.split(" /")[0])}</option>`).join("");
+  return `<div class="bk-row" data-i="${i}"><img src="${r.url}" alt=""><div class="bk-f">
+    <input type="text" data-k="name" value="${esc(r.name||"")}" placeholder="Name" aria-label="Name">
+    <div class="row"><select data-k="cat" aria-label="Type">${opts}</select><input type="text" data-k="brand" value="${esc(r.brand||"")}" placeholder="Brand" aria-label="Brand"></div>
+    <input type="text" data-k="color" value="${esc(r.color||"")}" placeholder="Color" aria-label="Color">
+    <div class="row" style="justify-content:space-between;align-items:center"><span class="bk-s">${esc(r.status||"")}</span><button type="button" class="btn ghost small bk-x" data-rm="${i}">Remove</button></div></div></div>`}
+function renderBulk(){const L=$("bk-list");L.innerHTML=BK.rows.map((r,i)=>r.gone?"":bkRowHTML(r,i)).join("");
+  L.querySelectorAll("[data-k]").forEach(el=>el.oninput=el.onchange=()=>{const r=BK.rows[+el.closest(".bk-row").dataset.i];r[el.dataset.k]=el.value});
+  L.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{BK.rows[+b.dataset.rm].gone=true;renderBulk()});
+  const live=BK.rows.filter(r=>!r.gone),done=live.filter(r=>r.done).length;
+  $("bk-save").disabled=!live.length||BK.running;$("bk-save").textContent=live.length?`Save all ${live.length}`:"Save all";
+  $("bk-status").textContent=!live.length?"pick photos of your pieces. one piece per photo.":BK.running?`identifying ${done+1} of ${live.length}…`:sample?`done. check the names, fix anything off, then save.`:"no gemini key on this device, so fill in the names yourself."}
+async function addBulkFiles(files){files=[...files].slice(0,30-BK.rows.filter(r=>!r.gone).length);if(!files.length)return;
+  for(const f of files){const b=await shrink(f);BK.rows.push({blob:b,url:URL.createObjectURL(b),cat:"top",status:sample?"waiting…":"",done:!sample})}
+  $("bulk").hidden=false;document.body.classList.add("locked");renderBulk();if(sample&&!BK.running)runBulk()}
+async function runBulk(){BK.running=true;renderBulk();
+  for(const r of BK.rows){if(r.gone||r.done)continue;r.status="identifying…";renderBulk();
+    try{const g=await geminiIdentify(r.blob,null);r.ai=g;
+      if(!r.name&&g.name)r.name=g.name;if(CATNAME[g.cat])r.cat=g.cat;if(!r.color&&g.color)r.color=g.color;
+      if(g.brand&&!r.brand){const b=findBrand(g.brand);r.brand=b&&normTxt(b.b)===normTxt(g.brand)?b.b:g.brand}
+      r.status=[g.brand,g.model].filter(Boolean).length?`${[g.brand,g.model].filter(Boolean).join(" ")}${g.confidence?` · ${g.confidence} confidence`:""}`:"no brand spotted"}
+    catch(e){r.status=sampleErr(e);if(e?.code==="rate_limited"||e?.code==="bad_key"){r.done=true;break}}
+    r.done=true;renderBulk();await new Promise(res=>setTimeout(res,700))}
+  BK.running=false;BK.rows.forEach(r=>r.done=true);renderBulk()}
+$("bk-save").onclick=async()=>{if(!db||!assets){toast("Can't save in this view.");return}const live=BK.rows.filter(r=>!r.gone&&!r.saved);const btn=$("bk-save");btn.disabled=true;let n=0;
+  for(const r of live){btn.textContent=`Saving ${++n} of ${live.length}…`;const g=r.ai||{};
+    try{const up=await assets.upload(r.blob,{type:"image/jpeg"});
+      await db.collection("items").doc().set({name:(r.name||g.name||"New piece").trim(),cat:CATNAME[r.cat]?r.cat:"top",color:(r.color||"").trim(),
+        sil:["slim","regular","relaxed","oversized"].includes(g.sil)?g.sil:"regular",len:["cropped","regular","long"].includes(g.len)?g.len:"regular",warmth:[1,2,3].includes(+g.warmth)?+g.warmth:2,
+        vibes:(g.vibes||[]).filter(v=>STYLES[v]),fitNotes:"",notes:+g.retail>0?`Retails around $${Math.round(+g.retail)} new.`:"",wash:false,brand:(r.brand||"").trim(),price:0,flat:up.id,body:null,created:Date.now()});
+      r.saved=true}catch{toast("One piece didn't save. The rest keep going.")}}
+  const ok=live.filter(r=>r.saved).length;BK.rows=BK.rows.filter(r=>!r.saved&&!r.gone);toast(`Added ${ok} piece${ok===1?"":"s"} to your closet.`);
+  if(!BK.rows.length){$("bulk").hidden=true;document.body.classList.remove("locked")}else renderBulk()};
+$("bk-close").onclick=()=>{if(BK.running){toast("Still identifying. Wait a moment, or save what's done.");}$("bulk").hidden=true;document.body.classList.remove("locked")};
+$("c-bulk").onchange=e=>{addBulkFiles(e.target.files);e.target.value=""};$("bk-more").onchange=e=>{addBulkFiles(e.target.files);e.target.value=""};
+
+/* ---------- wear calendar ---------- */
+const CAL={y:new Date().getFullYear(),m:new Date().getMonth(),sel:null};
+const ymd=(y,m,d)=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+function renderCal(){if(!$("cal"))return;const {y,m}=CAL,first=new Date(y,m,1),days=new Date(y,m+1,0).getDate(),lead=(first.getDay()+6)%7,td=today();
+  const byDay={};for(const w of S.wears)(byDay[w.day]=byDay[w.day]||[]).push(w);
+  $("cal-title").textContent=first.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+  $("cal-next").disabled=y>new Date().getFullYear()||(y===new Date().getFullYear()&&m>=new Date().getMonth());
+  let h=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>`<span class="dow">${d[0]}</span>`).join("")+"<span></span>".repeat(lead);
+  for(let d=1;d<=days;d++){const k=ymd(y,m,d),ws=byDay[k]||[],future=k>td;const it=ws.length?fitItems(ws[0].items).find(i=>i.flat||i.body):null;
+    h+=`<button class="cal-cell${ws.length?" worn":""}${k===td?" today":""}" data-day="${k}" ${future||!ws.length?"disabled":""} aria-pressed="${CAL.sel===k}" aria-label="${k}${ws.length?`, ${ws.length} fit${ws.length>1?"s":""} logged`:""}"><span class="d">${d}</span>${it?`<img src="${src(it.flat||it.body)}" alt="" loading="lazy">`:""}${ws.length>1?`<span class="n2">×${ws.length}</span>`:""}</button>`}
+  $("cal-grid").innerHTML=h;$("cal-grid").querySelectorAll("[data-day]:not([disabled])").forEach(b=>b.onclick=()=>{CAL.sel=CAL.sel===b.dataset.day?null:b.dataset.day;renderCal()});
+  // stats for the month
+  const mw=S.wears.filter(w=>w.day.startsWith(ymd(y,m,1).slice(0,7))),daysLogged=new Set(mw.map(w=>w.day)).size,cnt={};
+  mw.forEach(w=>new Set(w.items).forEach(id=>cnt[id]=(cnt[id]||0)+1));const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0],topIt=top&&S.items.find(i=>i.id===top[0]);
+  let streak=0;for(let t=new Date();;t=new Date(t-DAY)){const k=ymd(t.getFullYear(),t.getMonth(),t.getDate());if(byDay[k])streak++;else if(k!==td)break;if(streak>366)break}
+  $("cal-stats").textContent=mw.length?`${daysLogged} day${daysLogged>1?"s":""} logged this month.${topIt?` most worn: ${topIt.name.toLowerCase()} (${top[1]}×).`:""}${streak>1?` ${streak}-day streak.`:""}`:"nothing logged this month. tap \"wore this\" on a fit and it shows up here.";
+  const box=$("cal-day");if(!CAL.sel||!byDay[CAL.sel]){box.innerHTML="";return}
+  const dt=new Date(CAL.sel+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
+  box.innerHTML=`<div class="cal-day"><h3>${esc(dt)}</h3>`+byDay[CAL.sel].map(w=>`<div><div class="chat-fit">${fitItems(w.items).map(x=>cell(x)).join("")}</div>${piecesHTML(w.items)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn ghost small" data-calmq="${esc(w.id)}">ROT tries it on</button><button class="btn ghost small" data-calrm="${esc(w.id)}">Remove from log</button></div></div>`).join("")+`</div>`;
+  box.querySelectorAll("[data-calmq]").forEach(b=>b.onclick=()=>{const w=S.wears.find(x=>x.id===b.dataset.calmq);if(w)openMannequin(w.items,dt,"")});
+  box.querySelectorAll("[data-calrm]").forEach(b=>b.onclick=async()=>{try{await db.doc("wears/"+b.dataset.calrm).delete()}catch{toast("Couldn't remove it.")}})}
+$("cal-prev").onclick=()=>{CAL.m--;if(CAL.m<0){CAL.m=11;CAL.y--}CAL.sel=null;renderCal()};
+$("cal-next").onclick=()=>{CAL.m++;if(CAL.m>11){CAL.m=0;CAL.y++}CAL.sel=null;renderCal()};
+
+/* ---------- feedback ---------- */
+$("fb-open").onclick=()=>{$("fbf").reset();$("fbf-msg").textContent="";$("fbsheet").hidden=false};
+$("fbf-close").onclick=()=>$("fbsheet").hidden=true;
+$("fbf").onsubmit=async e=>{e.preventDefault();const text=$("fbf-text").value.trim();if(text.length<4){$("fbf-msg").textContent="Write a little more first.";return}
+  const kind=document.querySelector('input[name="fbk"]:checked')?.value||"other";
+  const row={kind,message:text.slice(0,4000),screen:S.tab||"",app_version:(document.querySelector('script[src^="app.js"]')?.src.split("v=")[1]||""),device:navigator.userAgent.slice(0,300)};
+  $("fbf-go").disabled=true;$("fbf-msg").textContent="Sending…";
+  try{const sh=await claude.use("shared");if(!sh)throw new Error("offline");const {error}=await sh.from("feedback_reports").insert(row);if(error)throw error;
+    $("fbf-msg").textContent="Sent. Thanks.";setTimeout(()=>$("fbsheet").hidden=true,900)}
+  catch{try{await navigator.clipboard.writeText(`[${kind}] ${text}`)}catch{}$("fbf-msg").textContent="Couldn't send it from here, so your message is copied. Text it to the person who shared the app with you."}
+  finally{$("fbf-go").disabled=false}};
+
 /* ---------- saved ---------- */
-function renderSaved(){$("n-saved").textContent=S.fits.length;const l=$("s-list");
+function renderSaved(){$("n-saved").textContent=S.fits.length;renderCal();const l=$("s-list");
   l.innerHTML=S.fits.length?S.fits.map(f=>fitCard(f,0,"saved")).join(""):`<div class="empty"><h3>No saved fits</h3><p>Hit Save on a fit you'd actually wear and it lands here.</p></div>`;
   l.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.mq);if(f)openMannequin(f.items,f.title,f.vibe)});
   l.querySelectorAll("[data-stand]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.stand);if(f)openStand(f.items,f.vibe)});

@@ -62,3 +62,7 @@ The swipe deck in **Next buys** shows real products that anyone using the app ad
 2. **Edge Functions → Deploy a new function → Via Editor:** name it `product`, paste all of `supabase/functions/product/index.ts`, **Deploy**. Leave **Verify JWT on** for this one, since only signed-in people should add products.
 
 That's it, no new secrets. To pull a product from everyone's deck, tick **hidden** on its row in **Table Editor → products**.
+
+## In-app feedback
+
+So people can send bug reports and ideas from **You & settings → Send feedback**: SQL Editor → paste `supabase/feedback.sql` → **Run**. Read them in **Table Editor → feedback_reports**. Until you run it, the app copies the message so the person can text it to you instead.

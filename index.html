@@ -312,6 +312,33 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .gap-price .was{text-decoration:line-through;color:var(--muted)}
 .gap-price a{color:var(--ink)}
 .tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle}
+.bulk-panel{display:flex;flex-direction:column;gap:10px}
+#bulk,#fbsheet{z-index:20}
+.bk-list{display:flex;flex-direction:column;gap:10px}
+.bk-row{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;border:1.5px solid var(--ink);padding:8px;background:var(--surface)}
+.bk-row img{width:84px;height:104px;object-fit:cover;background:#fff}
+.bk-row .bk-f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.bk-row .bk-f .row{gap:6px;flex-wrap:nowrap}
+.bk-row input,.bk-row select{font-size:.9rem;padding:6px 8px;min-width:0}
+.bk-row .bk-s{font:500 .75rem/1.3 var(--mono);color:var(--muted)}
+.bk-row .bk-x{align-self:flex-start}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:8px}
+.cal-grid .dow{font:600 .68rem var(--mono);text-align:center;color:var(--muted);text-transform:uppercase}
+.cal-cell{aspect-ratio:1/1.15;border:1.5px solid var(--line);background:var(--surface);position:relative;padding:0;overflow:hidden;cursor:pointer;color:var(--ink)}
+.cal-cell[disabled]{cursor:default;opacity:.35}
+.cal-cell .d{position:absolute;top:2px;left:3px;font:600 .68rem var(--mono);z-index:1;background:var(--surface);padding:0 2px}
+.cal-cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cal-cell.worn{border-color:var(--ink)}
+.cal-cell.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-cell[aria-pressed="true"]{outline:3px solid var(--accent);outline-offset:1px}
+.cal-cell .n2{position:absolute;bottom:2px;right:3px;font:700 .62rem var(--mono);background:var(--ink);color:var(--bg);padding:0 3px;z-index:1}
+.cal-day{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+p.status:empty,p.rot-line:empty,.pw-alerts:empty{display:none}
+.chat-fit{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;margin:8px 0 6px}
+.chat-fit > *{min-width:0}
+.chat-fit img{width:100%;aspect-ratio:1;object-fit:cover}
+.chat-fit figcaption,.chat-fit .cap{display:none}
+.chat-fit .ph{aspect-ratio:1;overflow:hidden}
 .b-more{grid-column:1/-1;margin:10px 0 4px}
 .wear-box{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1.5px dashed var(--ink);padding:8px 10px}
 .wear-stat{margin:0;font:500 .85rem/1.4 var(--mono)}
@@ -391,7 +418,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-13">
+<link rel="stylesheet" href="theme.css?v=20261001-14">
 </head>
 <body>
 
@@ -410,7 +437,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       <button class="tab" role="tab" id="tab-brands" data-tab="brands">Brands<span class="n" id="n-brands"></span></button>
       <button class="tab" role="tab" id="tab-inspo" data-tab="inspo">Inspo<span class="n" id="n-inspo">0</span></button>
       <button class="tab" role="tab" id="tab-you" data-tab="you">You &amp; settings</button>
-      <button class="tab" role="tab" id="tab-saved" data-tab="saved">Saved<span class="n" id="n-saved">0</span></button>
+      <button class="tab" role="tab" id="tab-saved" data-tab="saved">Saved &amp; worn<span class="n" id="n-saved">0</span></button>
     </nav>
   </header>
 
@@ -463,7 +490,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
   <section id="view-closet" hidden>
     <div class="row" style="justify-content:space-between;align-items:center">
       <div class="row" style="gap:8px;align-items:center"><div class="filters" id="c-filters"></div><select id="c-sort" aria-label="Sort closet" class="c-sort"><option value="new">Newest</option><option value="most">Most worn</option><option value="least">Least worn</option><option value="idle">Sitting longest</option><option value="cpw">Cost per wear</option></select><button type="button" class="color-toggle" id="c-color" aria-pressed="false">Show colors</button></div>
-      <button class="btn" id="c-add">Add a piece</button>
+      <div class="row" style="gap:6px"><label class="btn ghost" style="position:relative">Add many<input type="file" id="c-bulk" accept="image/*" multiple style="position:absolute;inset:0;opacity:0" aria-label="Add many pieces from photos"></label><button class="btn" id="c-add">Add a piece</button></div>
     </div>
     <div class="rot-report" id="c-report"></div>
     <div id="c-body" style="margin-top:16px"></div>
@@ -602,10 +629,17 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       <ul class="zr-list" id="zr-list"></ul>
     </div>
         <div class="panel" id="settings" style="margin-top:16px"></div>
+    <div class="panel" style="margin-top:16px"><h2>Feedback</h2><p class="muted">Found a bug or want something added? Send it straight to the app's owner.</p><button class="btn ghost" id="fb-open" style="align-self:flex-start">Send feedback</button></div>
   </section>
 
   <!-- SAVED -->
   <section id="view-saved" hidden>
+    <div class="panel cal" id="cal" style="margin-bottom:16px">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><h2 id="cal-title">Worn</h2><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn ghost small" id="cal-prev" aria-label="Previous month">‹</button><button class="btn ghost small" id="cal-next" aria-label="Next month">›</button></div></div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <p class="rot-line" id="cal-stats"></p>
+      <div id="cal-day"></div>
+    </div>
     <div class="fits" id="s-list"></div>
   </section>
 </div>
@@ -723,6 +757,27 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
     </div>
   </div>
 </div>
+<div class="sheet" id="bulk" hidden>
+  <div class="panel bulk-panel" role="dialog" aria-labelledby="bk-title">
+    <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><h2 id="bk-title">Add many pieces</h2><button type="button" class="btn ghost small" id="bk-close">Close</button></div>
+    <p class="rot-line" id="bk-status"></p>
+    <div class="bk-list" id="bk-list"></div>
+    <div class="row" style="gap:8px;justify-content:space-between;align-items:center">
+      <label class="btn ghost small" style="position:relative">Add more photos<input type="file" id="bk-more" accept="image/*" multiple style="position:absolute;inset:0;opacity:0"></label>
+      <button class="btn" id="bk-save" disabled>Save all</button>
+    </div>
+  </div>
+</div>
+<div class="sheet" id="fbsheet" hidden>
+  <form class="panel" id="fbf" autocomplete="off">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2>Send feedback</h2><button type="button" class="btn ghost small" id="fbf-close">Close</button></div>
+    <div class="row tight" id="fbf-kind" style="gap:6px"><label class="chip"><input type="radio" name="fbk" value="bug" checked>Something's broken</label><label class="chip"><input type="radio" name="fbk" value="idea">Idea</label><label class="chip"><input type="radio" name="fbk" value="other">Other</label></div>
+    <div class="field"><label class="label" for="fbf-text">What happened, or what should Rotation do?</label><textarea id="fbf-text" rows="5" placeholder="I tapped Save video and nothing happened"></textarea></div>
+    <p class="muted" style="font-size:.85rem">Sends your message, which screen you were on and your phone type to the app's owner. No photos or closet data.</p>
+    <p class="status" id="fbf-msg" aria-live="polite"></p>
+    <div class="row" style="justify-content:flex-end"><button type="submit" class="btn" id="fbf-go">Send</button></div>
+  </form>
+</div>
 <div class="sheet" id="brandsheet" hidden>
   <form class="panel" id="bf" autocomplete="off">
     <div class="row" style="justify-content:space-between;align-items:center"><h2>Add a brand</h2><button type="button" class="btn ghost small" id="bf-close">Close</button></div>
@@ -743,12 +798,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-13"></script>
-<script src="supabase.js?v=20261001-13"></script>
-<script src="platform.js?v=20261001-13"></script>
-<script src="catalog.js?v=20261001-13"></script>
-<script src="size.js?v=20261001-13"></script>
-<script src="rot.js?v=20261001-13"></script>
-<script src="app.js?v=20261001-13"></script>
+<script src="config.js?v=20261001-14"></script>
+<script src="supabase.js?v=20261001-14"></script>
+<script src="platform.js?v=20261001-14"></script>
+<script src="catalog.js?v=20261001-14"></script>
+<script src="size.js?v=20261001-14"></script>
+<script src="rot.js?v=20261001-14"></script>
+<script src="app.js?v=20261001-14"></script>
 </body>
 </html>
