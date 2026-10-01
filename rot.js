@@ -400,6 +400,23 @@
     kick:    { name: "kick", root: [150, 200, -10], torso: -12, head: 8, LU: 62, LF: 30, RU: -40, RF: -40, LT: 4, LS: 4, RT: -84, RS: -6 },
     crouch:  { name: "crouch", root: [140, 236, 0], torso: 10, head: -14, LU: 22, LF: -40, RU: -22, RF: 40, LT: 58, LS: -92, RT: -58, RS: 92 },
     hand:    { name: "handstand", root: [140, 150, 180], torso: 0, head: 10, LU: 6, LF: 0, RU: -6, RF: 0, LT: 34, LS: -20, RT: -30, RS: 50 },
+    guard:   { name: "fists up", root: [140, 196, 0], torso: 4, head: -4, LU: 34, LF: -150, RU: -34, RF: 150, LT: 14, LS: -4, RT: -14, RS: 4 },
+    barrage: { name: "barrage", root: [140, 196, 0], torso: 0, head: -10, LU: 92, LF: 6, RU: -92, RF: -6, LT: 16, LS: 0, RT: -16, RS: 0,
+               echo: [{ side: "L", U: 66, F: 14 }, { side: "L", U: 118, F: -10 }, { side: "L", U: 80, F: -20 }, { side: "R", U: -66, F: -14 }, { side: "R", U: -118, F: 10 }, { side: "R", U: -80, F: 20 }] },
+    wings:   { name: "many arms", root: [140, 200, 0], torso: 0, head: -14, LU: 140, LF: 18, RU: -140, RF: -18, LT: 6, LS: 4, RT: -6, RS: -4,
+               echo: [{ side: "L", U: 112, F: 26 }, { side: "L", U: 84, F: 30 }, { side: "R", U: -112, F: -26 }, { side: "R", U: -84, F: -30 }] },
+    lotus:   { name: "floating, legs crossed", root: [140, 176, 0], torso: 0, head: -6, LU: 20, LF: -64, RU: -20, RF: 64, LT: 80, LS: -150, RT: -80, RS: 150 },
+    pockets: { name: "hands in pockets", root: [140, 196, 3], torso: -4, head: 8, LU: -4, LF: -16, RU: 4, RF: 16, LT: 4, LS: 0, RT: -4, RS: 2, armsBehind: true },
+    behind:  { name: "hands behind back", root: [140, 196, 0], torso: -3, head: -12, LU: 16, LF: -34, RU: -16, RF: 34, LT: 6, LS: 0, RT: -6, RS: 0, armsBehind: true },
+    lean:    { name: "leaning in", root: [134, 192, 8], torso: 16, head: -20, LU: 14, LF: 24, RU: -64, RF: -70, LT: 4, LS: 12, RT: -12, RS: 22 },
+    shrug:   { name: "shrug", root: [140, 196, 0], torso: 0, head: 12, LU: 50, LF: -96, RU: -50, RF: 96, LT: 6, LS: 0, RT: -6, RS: 0 },
+    landing: { name: "landing", root: [118, 246, 0], torso: 22, head: -16, LU: -12, LF: 6, RU: -76, RF: -30, LT: 62, LS: -104, RT: -44, RS: 112 },
+    leap:    { name: "leap", root: [140, 190, -8], torso: -6, head: -8, LU: 124, LF: 30, RU: -62, RF: -24, LT: 72, LS: -124, RT: -12, RS: 22 },
+    hang:    { name: "upside down", root: [140, 170, 180], torso: 0, head: 14, LU: 18, LF: 10, RU: -18, RF: -10, LT: -6, LS: 26, RT: 6, RS: -26 },
+    judge:   { name: "pointing down", root: [140, 192, 6], torso: 8, head: 16, LU: 30, LF: -118, RU: -38, RF: -4, LT: 8, LS: 0, RT: -12, RS: 8 },
+    spin:    { name: "spin kick", root: [132, 200, 10], torso: 12, head: 6, LU: 70, LF: 20, RU: -110, RF: -10, LT: 6, LS: 6, RT: -96, RS: -4,
+               echo: [{ side: "RL", U: -64, F: 0 }, { side: "RL", U: -40, F: 6 }] },
+    tpose:   { name: "t-pose", root: [140, 196, 0], LU: 90, LF: 0, RU: -90, RF: 0 },
     dive:    { name: "diving", root: [172, 190, -62], torso: -6, head: -14, LU: 150, LF: 10, RU: 168, RF: -6, LT: 6, LS: 22, RT: 12, RS: 36 },
   };
   function posed(G, pose, body) {
@@ -422,7 +439,8 @@
       RS: { poly: [[80, 202], [140, 202], [140, 290], [80, 290]], piv: [92, 202], parent: "RT" },
       LOW: { poly: [[54.5, 152], [105.5, 152], [105.5, 162], [112, 162], [112, 190], [160, 190], [160, 290], [0, 290], [0, 162], [54.5, 162]], piv: [80, 150], parent: "torso" },
     };
-    const order = rigid ? ["LOW", "torso", "head", "LU", "LF", "RU", "RF"] : ["LT", "LS", "RT", "RS", "torso", "head", "LU", "LF", "RU", "RF"];
+    const legs = rigid ? ["LOW"] : ["LT", "LS", "RT", "RS"], arms = ["LU", "LF", "RU", "RF"];
+    const order = P.armsBehind ? [...arms, ...legs, "torso", "head"] : [...legs, "torso", "head", ...arms];
     const ang = { torso: (P.root?.[2] || 0) + (P.torso || 0), head: P.head || 0, LU: P.LU || 0, LF: P.LF || 0, RU: P.RU || 0, RF: P.RF || 0, LT: P.LT || 0, LS: P.LS || 0, RT: P.RT || 0, RS: P.RS || 0, LOW: ((P.LT || 0) + (P.RT || 0)) * 0.3 };
     // forward kinematics: absolute transform of each part
     const M = {}, mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
@@ -432,7 +450,18 @@
     M.torso = mul([1, 0, 0, 1, rx - tp[0], ry - tp[1]], rotAbout(ang.torso, tp));
     for (const k of ["head", "LU", "RU", "LT", "RT", "LOW", "LF", "RF", "LS", "RS"]) { const par = M[R[k].parent]; M[k] = mul(par, rotAbout(ang[k], T(...R[k].piv))) }
     const PW = 280, PH = 360, cv = document.createElement("canvas"); cv.width = PW; cv.height = PH; const c = cv.getContext("2d");
+    const drawPart = (cx, k, m) => { const part = R[k], pv = T(...part.piv), g = grey(pv[0], pv[1] + (k === "head" ? 2 : 0));
+      if (k !== "torso" && g != null) { const [jx, jy] = app(m, pv); cx.fillStyle = `rgb(${g},${g},${g})`; cx.beginPath(); cx.arc(jx, jy, k[1] === "U" ? 6 : k === "head" ? 6 : 7, 0, Math.PI * 2); cx.fill() }
+      cx.save(); cx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]); cx.beginPath(); part.poly.forEach(([x, y], i) => { const [a, b] = T(x, y); i ? cx.lineTo(a, b) : cx.moveTo(a, b) }); cx.closePath(); cx.clip(); cx.drawImage(src, 0, 0); cx.restore() };
+    let echoDone = false;
+    const drawEchoes = () => { if (echoDone || !P.echo?.length) return; echoDone = true;
+      const e = document.createElement("canvas"); e.width = 280; e.height = 360; const ex = e.getContext("2d");
+      for (const q of P.echo) { const [u, f] = q.side === "L" ? ["LU", "LF"] : q.side === "R" ? ["RU", "RF"] : q.side === "LL" ? ["LT", "LS"] : ["RT", "RS"];
+        if (rigid && (u === "LT" || u === "RT")) continue;
+        const mu = mul(M[R[u].parent], rotAbout(q.U, T(...R[u].piv))), mf = mul(mu, rotAbout(q.F, T(...R[f].piv))); drawPart(ex, u, mu); drawPart(ex, f, mf) }
+      c.save(); c.filter = "brightness(1.55) contrast(.8)"; c.drawImage(e, 0, 0); c.restore() };
     for (const k of order) {
+      if ((k === "LU" || k === "LT" || k === "LOW") && !P.armsBehind) drawEchoes(); else if (P.armsBehind && k === "LU") drawEchoes();
       const part = R[k], m = M[k], pv = T(...part.piv), g = grey(pv[0], pv[1] + (k === "head" ? 2 : 0));
       if (k !== "torso" && g != null) { const [jx, jy] = app(m, pv); c.fillStyle = `rgb(${g},${g},${g})`; c.beginPath(); c.arc(jx, jy, k[1] === "U" ? 6 : k === "head" ? 6 : 7, 0, Math.PI * 2); c.fill() }
       c.save(); c.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]); c.beginPath(); part.poly.forEach(([x, y], i) => { const [a, b] = T(x, y); i ? c.lineTo(a, b) : c.moveTo(a, b) }); c.closePath(); c.clip(); c.drawImage(src, 0, 0); c.restore();

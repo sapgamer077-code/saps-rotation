@@ -649,13 +649,14 @@ function applyTheme(){if(!window.ROT)return;const pal=ROT.PALETTES[mainStyle()]|
   document.querySelectorAll('meta[name="theme-color"]').forEach((m,i)=>m.content=i===0?`rgb(${pal[1].join(",")})`:`rgb(${pal[0].join(",")})`)}
 let rotOutfit=null,rotT=null;
 function renderRot(){clearTimeout(rotT);rotT=setTimeout(()=>{if(!window.ROT)return;
-  rotOutfit=ROT.outfitFor({style:mainStyle(),items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]});
+  rotOutfit=dailyOutfit();
   ROT.render($("rot-cv"),rotOutfit,{scale:1,seed:7,glitch:true,body:rotBody()});if(S.tab==="you")drawYou();applyTheme();sayNow()},60)}
 function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase();
   const worn=(rotOutfit?.detail||[]).find(d=>d.owned&&["outer","mid","top"].includes(ROT.SLOT[d.k]));
   const wornItem=worn&&S.items.find(i=>{const p=PIECE[worn.k];return p&&i.cat===p.cat&&p.re.test(((i.name||"")+" "+(i.notes||"")).toLowerCase())});
   if(t==="make"){if(n<3)return "i need a top, bottoms and shoes before i can dress you.";if(S.lastFits.length)return "rate them. i learn from every tap.";
-    return `${$("m-temp").value||60}° and ${($("m-wx").value||"clear").toLowerCase()}. want three fits?`}
+    const td=rotOutfit?.today,its=td?fitItems(td.ids):[],main=its.find(i=>i.cat==="outer")||its.find(i=>i.cat==="mid")||its.find(i=>i.cat==="bottom");
+    return `${$("m-temp").value||60}° and ${($("m-wx").value||"clear").toLowerCase()}.${main?(td.worn?` matching you today: your ${main.name.toLowerCase()}.`:` today i'm in your ${main.name.toLowerCase()}.`):""} want three fits?`}
   if(t==="closet"){if(!n)return "empty closet. add a piece and i'll start wearing it.";const idl=typeof idlePieces==="function"?idlePieces(1)[0]:null;if(idl)return `${idl.i.name.toLowerCase()}: ${idl.w.since} days untouched. wear it or let it go.`;return `${n} pieces. mostly ${st}.${wornItem?` wearing your ${wornItem.name.toLowerCase()} right now.`:""}`}
   if(t==="buys"){const g=liveGaps()[0];return g?`${g.item.toLowerCase()}. that's the gap.`:"tag the pieces in your pins and i'll find what's missing."}
   if(t==="brands")return `${myAtlas().length} brands for ${userStyles().map(k=>styleName(k).toLowerCase()).join(", ")}. hide what isn't you.`;
@@ -664,6 +665,19 @@ function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase
   if(t==="you")return `${S.prefs?.name?S.prefs.name.toLowerCase()+", ":""}this is you. i copy what you wear.`;
   if(t==="saved")return S.fits.length?`${S.fits.length} saved fit${S.fits.length>1?"s":""}. the good ones.`:"save a fit and it lives here.";
   return "ready."}
+// ROT's fit of the day: what you logged as worn today, otherwise a daily pick from your clean closet for today's weather
+function dailyIds(){const d=today();const w=S.wears.filter(x=>x.day===d).sort((a,b)=>b.at-a.at)[0];if(w?.items?.length)return {ids:w.items,worn:true};
+  let c=null;try{c=JSON.parse(localStorage.getItem("rot-daily")||"null")}catch{}
+  const valid=ids=>ids.filter(id=>S.items.some(i=>i.id===id&&!i.wash));
+  if(c?.day===d&&valid(c.ids||[]).length>=2)return {ids:valid(c.ids),worn:false};
+  const pool=S.items.filter(i=>!i.wash);if(pool.length<3||typeof fallbackFits!=="function")return {ids:[],worn:false};
+  const temp=WX?.data?WX.data.feels:(+$("m-temp").value||60),wx=WX?.data?wxBucket(WX.data.code,WX.data.wind):($("m-wx").value||"Clear");
+  const fs=fallbackFits(pool,temp,wx,"any"),dh=[...d].reduce((h,c)=>(h*31+c.charCodeAt(0))|0,7)>>>0,f=fs[dh%Math.max(1,fs.length)];const ids=f?f.items:[];
+  if(ids.length&&(WX?.data||!WX?.loc))try{localStorage.setItem("rot-daily",JSON.stringify({day:d,ids}))}catch{}
+  return {ids,worn:false}}
+function dailyOutfit(){const style=mainStyle(),{ids,worn}=dailyIds();
+  if(ids.length>=2){const o=ROT.outfitFor({style,items:fitItems(ids),pins:{},focus:[]});o.today={ids,worn};return o}
+  return ROT.outfitFor({style,items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]})}
 let sayTimer=null,lastSaid="";
 function say(text,animate){const el=$("rot-say");if(!el)return;clearInterval(sayTimer);lastSaid=text;
   const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -772,7 +786,7 @@ async function loadWeather(force){if(!WX.loc){paintWeather();return}if(!force&&W
     WX.data={temp:Math.round(j.current.temperature_2m),feels:Math.round(j.current.apparent_temperature),code:j.current.weather_code,wind:Math.round(j.current.wind_speed_10m),
       hi:Math.round(j.daily.temperature_2m_max[0]),lo:Math.round(j.daily.temperature_2m_min[0]),rain:j.daily.precipitation_probability_max[0]??0,dayCode:j.daily.weather_code[0]};WX.at=Date.now();
     if(!WX.edited){const d=WX.data;$("m-temp").value=d.feels;const wet=d.rain>=50&&[61,63,65,80,81,82,95,71,73,75].includes(d.dayCode);$("m-wx").value=wet?wxBucket(d.dayCode,d.wind):wxBucket(d.code,d.wind)}
-    paintWeather();if(S.tab==="make")sayNow()}
+    paintWeather();renderRot();if(S.tab==="make")sayNow()}
   catch{$("wx-line").textContent="Couldn't reach the weather service. Set it by hand below, or tap Refresh.";$("wx-refresh").hidden=false}}
 function paintWeather(){const d=WX.data,l=WX.loc;$("wx-refresh").hidden=!l;$("wx-here").textContent=l?"Update location":"Use my location";$("wx-city").textContent=l?"Change city":"Pick a city";
   if(!l){$("wx-line").textContent="Set your location to fill in today's weather automatically.";return}
@@ -1107,66 +1121,128 @@ async function shareFit(ids,title,why,vibe){try{toast("Making the card…");cons
   catch{toast("Couldn't make the card.")}}
 
 /* ---------- ROT in your pic ---------- */
-const ST={photo:null,w:0,h:0,x:.7,y:.83,size:.78,pose:"loom",behind:true,aura:true,flip:false,seed:7,items:null,vibe:"",person:null,segFailed:false,busy:false};
+const ST={photo:null,w:0,h:0,x:.72,y:.9,size:1.1,pose:"loom",look:"manifest",mask:null,base:null,assets:null,behind:true,aura:true,flip:false,seed:7,items:null,vibe:"",person:null,segFailed:false,busy:false};
 const SEG_CDN="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/";
 let segLib=null;
 function loadSeg(){if(segLib)return segLib;segLib=new Promise((res,rej)=>{const s=document.createElement("script");s.src=SEG_CDN+"selfie_segmentation.js";s.crossOrigin="anonymous";
   s.onload=()=>{try{const seg=new window.SelfieSegmentation({locateFile:f=>SEG_CDN+f});seg.setOptions({modelSelection:0,selfieMode:false});res(seg)}catch(e){rej(e)}};s.onerror=rej;document.head.appendChild(s)});
   segLib.catch(()=>{segLib=null});return segLib}
-async function cutPerson(){if(ST.person||ST.segFailed)return ST.person;$("st-status").textContent="Finding you in the photo…";
-  try{const seg=await loadSeg();const src=document.createElement("canvas");src.width=ST.w;src.height=ST.h;src.getContext("2d").drawImage(ST.photo,0,0,ST.w,ST.h);
-    const mask=await new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error("timeout")),25000);seg.onResults(r=>{clearTimeout(t);res(r.segmentationMask)});seg.send({image:src}).catch(rej)});
-    const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");
-    x.filter=`blur(${Math.max(1,Math.round(ST.w/400))}px)`;x.drawImage(mask,0,0,ST.w,ST.h);x.filter="none";x.globalCompositeOperation="source-in";x.drawImage(ST.photo,0,0,ST.w,ST.h);
-    ST.person=c;$("st-status").textContent="";return c}
-  catch{ST.segFailed=true;$("st-behind").checked=false;ST.behind=false;$("st-status").textContent="Couldn't cut you out of this photo, so ROT stands in front. Try a photo with a plainer background.";return null}}
 function standOutfit(){const style=STYLES[ST.vibe]?ST.vibe:mainStyle();
   if(ST.items?.length)return ROT.outfitFromItems(fitItems(ST.items),style);
   return rotOutfit||ROT.outfitFor({style,items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]})}
-// ROT plus a dithered aura, at ROT's native pixel size (scaled up crisp later)
-function standLayer(){const o=standOutfit(),pal=ROT.PALETTES[o.style]||ROT.PALETTES.streetwear,acc=pal[2];
-  const rc=document.createElement("canvas");ROT.render(rc,o,{scale:1,seed:ST.seed,glitch:true,body:rotBody(),cutout:true,pose:ST.pose});
-  const P=36,L=document.createElement("canvas");L.width=rc.width+P*2;L.height=rc.height+P*2;const x=L.getContext("2d");
-  if(ST.aura){const a=document.createElement("canvas");a.width=L.width;a.height=L.height;const ax=a.getContext("2d");
-    ax.filter="blur(9px)";ax.drawImage(rc,P,P);ax.drawImage(rc,P,P-6);ax.filter="blur(4px)";ax.drawImage(rc,P,P);ax.filter="none";
-    const d=ax.getImageData(0,0,a.width,a.height),B=[[0,32,8,40,2,34,10,42],[48,16,56,24,50,18,58,26],[12,44,4,36,14,46,6,38],[60,28,52,20,62,30,54,22],[3,35,11,43,1,33,9,41],[51,19,59,27,49,17,57,25],[15,47,7,39,13,45,5,37],[63,31,55,23,61,29,53,21]];
-    for(let yy=0;yy<a.height;yy++)for(let xx=0;xx<a.width;xx++){const i=(yy*a.width+xx)*4,v=d.data[i+3]/255*1.7*(0.75+0.25*Math.sin(yy/5+ST.seed));
-      const on=v>(B[yy&7][xx&7]+.5)/64;d.data[i]=acc[0];d.data[i+1]=acc[1];d.data[i+2]=acc[2];d.data[i+3]=on?200:0}
-    ax.putImageData(d,0,0);x.drawImage(a,0,0)}
-  // chromatic ghost, then ROT
+const LOOKS={manifest:{grade:1,dissolve:1,lines:0,rim:1,grain:1},impact:{grade:1,dissolve:0,lines:1,rim:1,grain:1,streak:1},clean:{grade:0,dissolve:0,lines:0,rim:0,grain:0}};
+const B8S=[[0,32,8,40,2,34,10,42],[48,16,56,24,50,18,58,26],[12,44,4,36,14,46,6,38],[60,28,52,20,62,30,54,22],[3,35,11,43,1,33,9,41],[51,19,59,27,49,17,57,25],[15,47,7,39,13,45,5,37],[63,31,55,23,61,29,53,21]];
+const hash=(x,y,k)=>{let h=(x*374761393+y*668265263+k*2147483647)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295};
+// ROT at native pixels, plus everything that only changes with pose/outfit/seed (cached)
+function standBase(){const o=standOutfit(),key=[ST.pose,ST.seed,o.style,JSON.stringify(o.layers),JSON.stringify(rotBody())].join("|");
+  if(ST.base?.key===key)return ST.base;
+  const pal=ROT.PALETTES[o.style]||ROT.PALETTES.streetwear,rc=document.createElement("canvas");ROT.render(rc,o,{scale:1,seed:ST.seed,glitch:true,body:rotBody(),cutout:true,pose:ST.pose});
+  const P=40,w=rc.width+P*2,h=rc.height+P*2,d=rc.getContext("2d").getImageData(0,0,rc.width,rc.height).data;
+  let y0=1e9,y1=0,x0=1e9,x1=0;const eyes=[];
+  for(let y=0;y<rc.height;y++)for(let x=0;x<rc.width;x++){const i=(y*rc.width+x)*4;if(d[i+3]){if(y<y0)y0=y;if(y>y1)y1=y;if(x<x0)x0=x;if(x>x1)x1=x;
+    if(Math.abs(d[i]-pal[2][0])<6&&Math.abs(d[i+1]-pal[2][1])<6&&Math.abs(d[i+2]-pal[2][2])<6)eyes.push([x+P,y+P])}}
+  // eyes = accent pixels in the top fifth of the figure (zips and snaps stay put)
+  const headY=y0+(y1-y0)*.2,eyePx=eyes.filter(([,y])=>y-P<=headY);
+  const blur=(px)=>{const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.filter=`blur(${px}px)`;x.drawImage(rc,P,P);x.drawImage(rc,P,P-4);x.filter="none";return x.getImageData(0,0,w,h).data};
+  ST.base={key,rc,P,w,h,pal,style:o.style,box:[x0+P,y0+P,x1+P,y1+P],eyes:eyePx,auraA:blur(10),rimA:blur(2)};return ST.base}
+// one animation frame of the ROT layer
+function standLayer(t,look){const B=standBase(),{rc,P,w,h,pal}=B,acc=pal[2],paper=pal[1];
+  const L=document.createElement("canvas");L.width=w;L.height=h;const x=L.getContext("2d");
+  const fr=Math.floor(t*12);
+  if(ST.aura){const img=x.createImageData(w,h),D=img.data,A=B.auraA,Rm=B.rimA;
+    for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const i=(yy*w+xx)*4;
+      const wob=.78+.22*Math.sin(yy/6-t*7)+.12*(hash(xx>>2,yy>>2,fr)-.5);
+      const v=A[i+3]/255*1.9*wob,th=(B8S[yy&7][xx&7]+.5)/64;
+      if(look.rim&&Rm[i+3]>40&&Rm[i+3]<215){D[i]=Math.min(255,paper[0]+20);D[i+1]=Math.min(255,paper[1]+20);D[i+2]=Math.min(255,paper[2]+20);D[i+3]=hash(xx,yy,fr)>.25?235:0}
+      else if(v>th){D[i]=acc[0];D[i+1]=acc[1];D[i+2]=acc[2];D[i+3]=170+Math.round(60*v)}}
+    x.putImageData(img,0,0)}
+  // chromatic ghost that jitters, then ROT
   const g=document.createElement("canvas");g.width=rc.width;g.height=rc.height;const gx=g.getContext("2d");gx.drawImage(rc,0,0);gx.globalCompositeOperation="source-in";gx.fillStyle=`rgb(${acc.join(",")})`;gx.fillRect(0,0,g.width,g.height);
-  x.globalAlpha=.45;x.drawImage(g,P-3,P);x.globalAlpha=.94;x.drawImage(rc,P,P);x.globalAlpha=1;
-  return {L,P,rw:rc.width,rh:rc.height,style:o.style,pal}}
-function drawStand(cv){if(!ST.photo)return;cv.width=ST.w;cv.height=ST.h;const x=cv.getContext("2d");x.drawImage(ST.photo,0,0,ST.w,ST.h);
-  const {L,P,rw,rh,style,pal}=standLayer();const dh=ST.size*ST.h,sc=dh/rh,dw=L.width*sc,dH=L.height*sc;
-  const cx=ST.x*ST.w,feet=ST.y*ST.h,left=cx-dw/2,top=feet-(P+rh)*sc;
+  const jx=(hash(fr,1,ST.seed)>.8?-5:-2),jy=hash(fr,2,ST.seed)>.9?2:0;
+  x.globalAlpha=.5;x.drawImage(g,P+jx,P+jy);x.globalAlpha=.96;x.drawImage(rc,P,P);x.globalAlpha=1;
+  // occasional glitch slice
+  if(hash(fr,3,ST.seed)>.82){const sy=Math.floor(B.box[1]+hash(fr,4,1)*(B.box[3]-B.box[1])),sh=2+Math.floor(hash(fr,5,1)*5),sx=(hash(fr,6,1)>.5?1:-1)*(3+Math.floor(hash(fr,7,1)*6));
+    const strip=x.getImageData(0,sy,w,sh);x.clearRect(0,sy,w,sh);x.putImageData(strip,sx,sy)}
+  // legs dissolve into static, with bits drifting up
+  if(look.dissolve){const [bx0,by0,bx1,by1]=B.box,fy0=by0+(by1-by0)*.5,img=x.getImageData(0,0,w,h),D=img.data;
+    for(let yy=Math.floor(fy0);yy<h;yy++){const f=Math.min(1,(yy-fy0)/(by1-fy0+1));for(let xx=0;xx<w;xx++){const i=(yy*w+xx)*4;if(!D[i+3])continue;
+      if(hash(xx>>1,yy>>1,fr>>1)<f*1.15)D[i+3]=0;else if(f>.5)D[i+3]=Math.round(D[i+3]*(1.25-f))}}
+    x.putImageData(img,0,0);
+    for(let k=0;k<46;k++){const life=(t*.55+hash(k,9,ST.seed))%1,px=bx0+hash(k,10,ST.seed)*(bx1-bx0)+Math.sin(t*2+k)*4,py=by1-life*(by1-by0)*.75;
+      x.fillStyle=k%3?`rgba(${pal[0].join(",")},${(1-life)*.9})`:`rgba(${acc.join(",")},${(1-life)})`;const sz=k%4?2:3;x.fillRect(Math.round(px),Math.round(py),sz,sz)}}
+  return {L,B}}
+function gradeCanvas(src,pal){const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");
+  x.filter="contrast(1.22) saturate(.72) brightness(.86)";x.drawImage(src,0,0,ST.w,ST.h);x.filter="none";
+  x.globalCompositeOperation="soft-light";x.fillStyle=`rgba(${pal[2].join(",")},.28)`;x.fillRect(0,0,ST.w,ST.h);
+  x.globalCompositeOperation="multiply";x.fillStyle=`rgba(${pal[0].map(v=>Math.min(255,v+120)).join(",")},.35)`;x.fillRect(0,0,ST.w,ST.h);
+  x.globalCompositeOperation="source-over";const v=x.createRadialGradient(ST.w/2,ST.h*.45,Math.min(ST.w,ST.h)*.35,ST.w/2,ST.h*.5,Math.max(ST.w,ST.h)*.75);
+  v.addColorStop(0,"rgba(0,0,0,0)");v.addColorStop(1,"rgba(0,0,0,.62)");x.fillStyle=v;x.fillRect(0,0,ST.w,ST.h);return c}
+function personFrom(bg){if(!ST.mask)return null;const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");x.drawImage(ST.mask,0,0);x.globalCompositeOperation="source-in";x.drawImage(bg,0,0,ST.w,ST.h);return c}
+function stageAssets(look){const pal=standBase().pal,k=[look.grade,pal.join()].join("|");
+  if(ST.assets?.k===k&&ST.assets.mask===ST.mask)return ST.assets;
+  const bg=look.grade?gradeCanvas(ST.photo,pal):ST.photo;
+  let grain=null;if(look.grain){grain=document.createElement("canvas");grain.width=grain.height=128;const gx=grain.getContext("2d"),im=gx.createImageData(128,128);
+    for(let i=0;i<im.data.length;i+=4){const v=Math.random()*255;im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=26}gx.putImageData(im,0,0)}
+  ST.assets={k,mask:ST.mask,bg,person:personFrom(bg),grain};return ST.assets}
+function drawStand(cv,t=0){if(!ST.photo)return;const look=LOOKS[ST.look]||LOOKS.manifest;
+  if(cv.width!==ST.w||cv.height!==ST.h){cv.width=ST.w;cv.height=ST.h}const x=cv.getContext("2d");const A=stageAssets(look);
+  x.drawImage(A.bg,0,0,ST.w,ST.h);
+  const {L,B}=standLayer(t,look),{P,rc,pal}=B,rh=rc.height,dh=ST.size*ST.h,sc=dh/rh,dw=L.width*sc,dH=L.height*sc;
+  const bob=Math.sin(t*2*Math.PI/2.6)*ST.h*.01;const cx=ST.x*ST.w,feet=ST.y*ST.h+bob,left=cx-dw/2,top=feet-(P+rh)*sc;
+  const mapX=px=>{const X=left+px*sc;return ST.flip?2*cx-X:X},mapY=py=>top+py*sc;
+  // speed lines from ROT's chest
+  if(look.lines){const ox=mapX((B.box[0]+B.box[2])/2),oy=mapY(B.box[1]+(B.box[3]-B.box[1])*.35),R=Math.hypot(ST.w,ST.h),n=72,fr=Math.floor(t*12);
+    x.save();for(let k=0;k<n;k++){if(hash(k,fr,5)<.35)continue;const a=k/n*Math.PI*2+hash(k,fr,6)*.05,r0=dh*(.42+hash(k,fr,7)*.3),wd=.006+hash(k,1,8)*.012;
+      x.fillStyle=k%5?`rgba(${pal[1].join(",")},.32)`:`rgba(${pal[2].join(",")},.45)`;x.beginPath();x.moveTo(ox+Math.cos(a)*r0,oy+Math.sin(a)*r0);
+      x.lineTo(ox+Math.cos(a-wd)*R,oy+Math.sin(a-wd)*R);x.lineTo(ox+Math.cos(a+wd)*R,oy+Math.sin(a+wd)*R);x.closePath();x.fill()}x.restore()}
   x.save();x.imageSmoothingEnabled=false;if(ST.flip){x.translate(cx,0);x.scale(-1,1);x.translate(-cx,0)}x.drawImage(L,left,top,dw,dH);x.restore();
-  if(ST.behind&&ST.person)x.drawImage(ST.person,0,0);
-  // small tag in ROT's colors
-  const f=Math.max(14,Math.round(ST.w/42));x.font=`700 ${f}px "IBM Plex Mono", ui-monospace, monospace`;const tag=`ROT ▸ ${styleName(style).toLowerCase()}`,tw=x.measureText(tag).width;
-  const tx=Math.round(ST.w*.04),ty=Math.round(ST.h-f*2.2);x.fillStyle=`rgb(${pal[0].join(",")})`;x.fillRect(tx,ty,tw+f,f*1.5);x.fillStyle=`rgb(${pal[2].join(",")})`;x.fillRect(tx,ty+f*1.5-3,tw+f,3);
+  // glowing eyes (and a light streak on Impact)
+  if(B.eyes.length&&look.rim!==0){x.save();x.globalCompositeOperation="lighter";const pulse=1+.18*Math.sin(t*5);
+    const ex=B.eyes.reduce((a,[ex,ey])=>[a[0]+ex,a[1]+ey],[0,0]).map(v=>v/B.eyes.length);
+    for(const [px,py] of [[ex[0]-3,ex[1]],[ex[0]+3,ex[1]]]){const X=mapX(px),Y=mapY(py),r=sc*7*pulse,gr=x.createRadialGradient(X,Y,0,X,Y,r);
+      gr.addColorStop(0,`rgba(${pal[2].join(",")},.95)`);gr.addColorStop(.35,`rgba(${pal[2].join(",")},.45)`);gr.addColorStop(1,`rgba(${pal[2].join(",")},0)`);x.fillStyle=gr;x.fillRect(X-r,Y-r,r*2,r*2);
+      if(look.streak){const dir=ST.flip?-1:1,len=sc*(26+10*Math.sin(t*3));const lg=x.createLinearGradient(X,Y,X+dir*len,Y);lg.addColorStop(0,`rgba(${pal[2].join(",")},.85)`);lg.addColorStop(1,`rgba(${pal[2].join(",")},0)`);
+        x.fillStyle=lg;x.fillRect(Math.min(X,X+dir*len),Y-sc*.8,len,sc*1.6)}}
+    x.restore()}
+  if(ST.behind&&A.person)x.drawImage(A.person,0,0);
+  if(A.grain){x.save();x.globalCompositeOperation="overlay";const off=(Math.floor(t*12)*37)%128;x.translate(-off,-off);x.fillStyle=x.createPattern(A.grain,"repeat");x.fillRect(0,0,ST.w+128,ST.h+128);x.restore()}
+  // tag
+  const f=Math.max(14,Math.round(ST.w/40));x.font=`700 ${f}px "IBM Plex Mono", ui-monospace, monospace`;const tag=`ROT ▸ ${styleName(B.style).toLowerCase()}`,tw=x.measureText(tag).width;
+  const tx=Math.round(ST.w*.04),ty=Math.round(ST.h-f*2.4);x.fillStyle=`rgb(${pal[0].join(",")})`;x.fillRect(tx,ty,tw+f,f*1.5);x.fillStyle=`rgb(${pal[2].join(",")})`;x.fillRect(tx,ty+f*1.5-3,tw+f,3);
   x.fillStyle=`rgb(${pal[1].join(",")})`;x.textBaseline="middle";x.fillText(tag,tx+f/2,ty+f*.75)}
-// Put ROT on the emptier side of you, head a bit above yours, about your height
-function autoPlace(){const pc=ST.person;if(!pc)return;const x=pc.getContext("2d"),d=x.getImageData(0,0,ST.w,ST.h).data;let x0=ST.w,x1=0,y0=ST.h,y1=0;
+// Put ROT on the emptier side of you, bigger than you, head above yours
+function autoPlace(){const m=ST.mask;if(!m)return;const d=m.getContext("2d").getImageData(0,0,ST.w,ST.h).data;let x0=ST.w,x1=0,y0=ST.h,y1=0;
   for(let y=0;y<ST.h;y+=4)for(let xx=0;xx<ST.w;xx+=4)if(d[(y*ST.w+xx)*4+3]>128){if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(y<y0)y0=y;if(y>y1)y1=y}
-  if(x1<=x0||Math.max(x0,ST.w-x1)<ST.w*.18||y0<ST.h*.03)return; // person fills the frame: keep the default spot
-  const right=ST.w-x1>=x0,ph=(y1-y0)/ST.h;ST.size=Math.max(.45,Math.min(1.4,ph*1.25));$("st-size").value=Math.round(ST.size*100);
-  const rh=360,sc=ST.size*ST.h/rh,dw=(280+72)*sc;ST.flip=!right;$("st-flip").checked=ST.flip;
-  ST.x=Math.max(.05,Math.min(.95,(right?x1+dw*.08:x0-dw*.08)/ST.w));ST.y=Math.min(1.5,(y0-.05*ST.h+(rh-40)*sc)/ST.h)}
-let stT=null;function redrawStand(){clearTimeout(stT);stT=setTimeout(()=>drawStand($("st-cv")),16)}
+  if(x1<=x0||Math.max(x0,ST.w-x1)<ST.w*.18||y0<ST.h*.03)return;
+  const right=ST.w-x1>=x0,ph=(y1-y0)/ST.h;ST.size=Math.max(.5,Math.min(1.5,ph*1.5));$("st-size").value=Math.round(ST.size*100);
+  const rh=360,sc=ST.size*ST.h/rh,dw=(280+80)*sc;ST.flip=!right;$("st-flip").checked=ST.flip;
+  ST.x=Math.max(.05,Math.min(.95,(right?x1-dw*.02:x0+dw*.02)/ST.w));ST.y=Math.min(1.5,(y0-.1*ST.h+(rh-40)*sc)/ST.h)}
+// animation: ~12fps while the sheet is open
+let stRAF=0,stLast=0;const stT0=performance.now();
+function stLoop(now){stRAF=requestAnimationFrame(stLoop);if(now-stLast<80)return;stLast=now;try{drawStand($("st-cv"),(now-stT0)/1000)}catch{}}
+function startAnim(){cancelAnimationFrame(stRAF);if(matchMedia("(prefers-reduced-motion: reduce)").matches){drawStand($("st-cv"),.4);return}stRAF=requestAnimationFrame(stLoop)}
+function stopAnim(){cancelAnimationFrame(stRAF);stRAF=0}
+function redrawStand(){if(!stRAF&&ST.photo)drawStand($("st-cv"),.4)}
+async function cutPerson(){if(ST.mask||ST.segFailed)return ST.mask;$("st-status").textContent="Finding you in the photo…";
+  try{const seg=await loadSeg();const src=document.createElement("canvas");src.width=ST.w;src.height=ST.h;src.getContext("2d").drawImage(ST.photo,0,0,ST.w,ST.h);
+    const mask=await new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error("timeout")),25000);seg.onResults(r=>{clearTimeout(t);res(r.segmentationMask)});seg.send({image:src}).catch(rej)});
+    const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");x.filter=`blur(${Math.max(1,Math.round(ST.w/400))}px)`;x.drawImage(mask,0,0,ST.w,ST.h);
+    ST.mask=c;ST.person=c;$("st-status").textContent="";return c}
+  catch{ST.segFailed=true;$("st-behind").checked=false;ST.behind=false;$("st-status").textContent="Couldn't cut you out of this photo, so ROT stands in front. Try a photo with a plainer background.";return null}}
 async function loadStandPhoto(file){if(!file)return;$("st-status").textContent="Loading…";
-  try{const bmp=await createImageBitmap(await shrink(file,1440));ST.photo=bmp;ST.w=bmp.width;ST.h=bmp.height;ST.person=null;ST.segFailed=false;
+  try{const bmp=await createImageBitmap(await shrink(file,1440));ST.photo=bmp;ST.w=bmp.width;ST.h=bmp.height;ST.mask=null;ST.person=null;ST.assets=null;ST.segFailed=false;
     $("st-pick").hidden=true;$("st-cv").classList.add("on");$("st-controls").hidden=false;$("st-hint").hidden=false;$("st-verdict").hidden=true;$("st-rate").hidden=!sample;
-    ST.size=+$("st-size").value/100;ST.y=Math.min(1,.04+ST.size);ST.x=ST.behind?.74:.7;drawStand($("st-cv"));$("st-status").textContent="";if(ST.behind){await cutPerson();autoPlace();redrawStand()}}
+    ST.size=+$("st-size").value/100;ST.y=Math.min(1.1,.08+ST.size*.8);ST.x=.72;startAnim();$("st-status").textContent="";if(ST.behind){await cutPerson();autoPlace()}}
   catch{$("st-status").textContent="Couldn't open that photo."}}
 function renderPoses(){const box=$("st-poses");const o=standOutfit();
   box.innerHTML=Object.entries(ROT.POSES).filter(([k])=>k!=="stand").map(([k,p])=>`<button type="button" data-pose="${k}" aria-pressed="${ST.pose===k}"><canvas width="280" height="360"></canvas>${esc(p.name)}</button>`).join("")+`<button type="button" data-pose="random" aria-pressed="false"><canvas width="280" height="360"></canvas>random</button>`;
   box.querySelectorAll("[data-pose]").forEach(b=>{const k=b.dataset.pose;if(k!=="random")ROT.render(b.querySelector("canvas"),o,{scale:1,seed:3,glitch:false,body:rotBody(),pose:k});
     b.onclick=()=>{let k2=k;if(k==="random"){const ks=Object.keys(ROT.POSES).filter(x=>x!=="stand"&&x!==ST.pose);k2=ks[Math.floor(Math.random()*ks.length)]}
       ST.pose=k2;box.querySelectorAll("[data-pose]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.pose===k2));redrawStand()}})}
-function openStand(items,vibe){ST.items=items||null;ST.vibe=vibe||"";ST.seed=7;setTimeout(renderPoses,30);$("stand").hidden=false;document.body.classList.add("locked");
-  if(!ST.photo){$("st-pick").hidden=false;$("st-cv").classList.remove("on");$("st-controls").hidden=true;$("st-hint").hidden=true}else redrawStand()}
-function closeStand(){$("stand").hidden=true;document.body.classList.remove("locked")}
+function renderLooks(){$("st-looks").querySelectorAll("[data-look]").forEach(b=>{b.setAttribute("aria-pressed",b.dataset.look===ST.look);b.onclick=()=>{ST.look=b.dataset.look;renderLooks();redrawStand()}})}
+function openStand(items,vibe){ST.items=items||null;ST.vibe=vibe||"";ST.seed=7;ST.base=null;ST.assets=null;setTimeout(renderPoses,30);renderLooks();$("stand").hidden=false;document.body.classList.add("locked");
+  if(!ST.photo){$("st-pick").hidden=false;$("st-cv").classList.remove("on");$("st-controls").hidden=true;$("st-hint").hidden=true}else startAnim()}
+function closeStand(){stopAnim();$("stand").hidden=true;document.body.classList.remove("locked")}
 $("st-close").onclick=closeStand;
 $("st-file").onchange=e=>loadStandPhoto(e.target.files[0]);$("st-file2").onchange=e=>loadStandPhoto(e.target.files[0]);
 $("st-size").oninput=e=>{ST.size=+e.target.value/100;redrawStand()};
@@ -1176,11 +1252,21 @@ $("st-flip").onchange=e=>{ST.flip=e.target.checked;redrawStand()};
 $("st-glitch").onclick=()=>{ST.seed=1+Math.floor(Math.random()*999);redrawStand()};
 (()=>{const cv=$("st-cv");let drag=null;
   cv.addEventListener("pointerdown",e=>{const r=cv.getBoundingClientRect();drag={px:e.clientX,py:e.clientY,x:ST.x,y:ST.y,k:ST.w/r.width};cv.setPointerCapture(e.pointerId)});
-  cv.addEventListener("pointermove",e=>{if(!drag)return;ST.x=Math.max(-.2,Math.min(1.2,drag.x+(e.clientX-drag.px)*drag.k/ST.w));ST.y=Math.max(.2,Math.min(1.6,drag.y+(e.clientY-drag.py)*drag.k/ST.h));redrawStand()});
+  cv.addEventListener("pointermove",e=>{if(!drag)return;ST.x=Math.max(-.2,Math.min(1.2,drag.x+(e.clientX-drag.px)*drag.k/ST.w));ST.y=Math.max(.2,Math.min(1.8,drag.y+(e.clientY-drag.py)*drag.k/ST.h));redrawStand()});
   const end=()=>{drag=null};cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end)})();
-$("st-share").onclick=async()=>{const cv=document.createElement("canvas");drawStand(cv);const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",.92));const file=new File([blob],"rot-fit.jpg",{type:"image/jpeg"});
-  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:$("st-verdict").hidden?"dressed by rot":$("st-verdict").textContent});return}}catch(e){if(e.name==="AbortError")return}
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="rot-fit.jpg";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),20000);toast("Saved. Find it in your downloads or photos.")};
+async function shareBlob(blob,name,text){const file=new File([blob],name,{type:blob.type});
+  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text});return}}catch(e){if(e.name==="AbortError")return}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),30000);toast("Saved. Find it in your downloads or photos.")}
+$("st-share").onclick=async()=>{const cv=document.createElement("canvas");drawStand(cv,(performance.now()-stT0)/1000);const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",.93));
+  shareBlob(blob,"rot-fit.jpg",$("st-verdict").hidden?"dressed by rot":$("st-verdict").textContent)};
+// a 3-second loop of the animated pic
+$("st-video").onclick=async()=>{const cv=$("st-cv");if(!cv.captureStream||!window.MediaRecorder){toast("This browser can't record video. Save the photo instead.");return}
+  const type=["video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9","video/webm"].find(t=>MediaRecorder.isTypeSupported?.(t));if(!type){toast("This browser can't record video. Save the photo instead.");return}
+  const b=$("st-video");b.disabled=true;b.textContent="Recording…";startAnim();
+  try{const rec=new MediaRecorder(cv.captureStream(24),{mimeType:type,videoBitsPerSecond:6e6}),chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+    const done=new Promise(r=>rec.onstop=r);rec.start();await new Promise(r=>setTimeout(r,3200));rec.stop();await done;
+    const blob=new Blob(chunks,{type:type.split(";")[0]});await shareBlob(blob,"rot-fit."+(type.includes("mp4")?"mp4":"webm"),"dressed by rot")}
+  catch{toast("Couldn't record. Save the photo instead.")}finally{b.disabled=false;b.textContent="Save video"}};
 $("st-rate").onclick=async()=>{if(!sample||!ST.photo)return;$("st-rate").disabled=true;$("st-status").textContent="ROT is looking…";
   try{const c=document.createElement("canvas");const s=Math.min(1,900/Math.max(ST.w,ST.h));c.width=ST.w*s;c.height=ST.h*s;c.getContext("2d").drawImage(ST.photo,0,0,c.width,c.height);
     const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.85));
@@ -1226,7 +1312,7 @@ renderAll();RP.renderSettings();renderRot();const HASH_TAB=(location.hash||"").s
   db.collection("gaps").orderBy("at","desc").limit(1).onSnapshot(q=>{S.gaps=q.docs[0]?q.docs[0].data():null;renderGaps();if(S.tab==="brands")renderBrands();if(S.tab==="buys")maybeAutoRefresh()},()=>{});
   db.doc("sizes/me").onSnapshot(d=>{S.sizes=d.exists?d.data():null;if(!sample)renderGaps();if(S.tab==="you")fillSizeForm()},()=>{});
   sub(db.collection("swipes"),"swipes",()=>{renderLikes();if(!sample)renderGaps()});
-  sub(db.collection("wears").orderBy("at","desc").limit(1000),"wears",()=>{wearCache=null;renderCloset();renderFits();renderSaved();sayNow()});
+  sub(db.collection("wears").orderBy("at","desc").limit(1000),"wears",()=>{wearCache=null;renderRot();renderCloset();renderFits();renderSaved();sayNow()});
   sub(db.collection("fitref"),"fitref",()=>{renderFitRefs();renderGaps()});
   db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;renderRot();if(S.tab==="you")fillBodyForm()},()=>{});
   // New here? Ask the style quiz once the account's data has had a chance to sync down.

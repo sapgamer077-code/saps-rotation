@@ -296,6 +296,7 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .st-controls{display:flex;flex-direction:column;gap:10px}
 .st-controls input[type=range]{width:100%}
 .st-controls .field{flex:none}
+.st-looks .btn[aria-pressed="true"]{background:var(--ink)!important;color:var(--bg)!important}
 .st-poses{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
 .st-poses button{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1.5px solid var(--line);background:var(--surface);font:500 .65rem var(--mono);color:var(--ink);cursor:pointer}
 .st-poses button[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
@@ -379,7 +380,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-6">
+<link rel="stylesheet" href="theme.css?v=20261001-8">
 </head>
 <body>
 
@@ -691,8 +692,9 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
     </div>
     <p class="muted st-hint" id="st-hint" hidden>Drag ROT to move it. Use the slider to resize.</p>
     <div class="st-controls" id="st-controls" hidden>
+      <div class="field"><span class="label">Look</span><div class="row tight st-looks" id="st-looks" style="gap:6px"><button type="button" class="btn ghost small" data-look="manifest">Manifest</button><button type="button" class="btn ghost small" data-look="impact">Impact</button><button type="button" class="btn ghost small" data-look="clean">Clean</button></div></div>
       <div class="field"><span class="label">Pose</span><div class="st-poses" id="st-poses"></div></div>
-      <div class="field"><label class="label" for="st-size">Size</label><input type="range" id="st-size" min="25" max="150" value="92"></div>
+      <div class="field"><label class="label" for="st-size">Size</label><input type="range" id="st-size" min="30" max="170" value="110"></div>
       <div class="row tight" style="gap:6px">
         <label class="chip"><input type="checkbox" id="st-behind" checked>Behind me</label>
         <label class="chip"><input type="checkbox" id="st-aura" checked>Aura</label>
@@ -702,7 +704,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       </div>
       <p class="status" id="st-status" aria-live="polite"></p>
       <p class="rot-line" id="st-verdict" hidden></p>
-      <div class="row" style="gap:8px"><button class="btn" id="st-share">Save or share</button><button class="btn ghost" id="st-rate" hidden>ROT's verdict</button></div>
+      <div class="row" style="gap:8px"><button class="btn" id="st-share">Save photo</button><button class="btn ghost" id="st-video">Save video</button><button class="btn ghost" id="st-rate" hidden>ROT's verdict</button></div>
     </div>
   </div>
 </div>
@@ -726,12 +728,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-6"></script>
-<script src="supabase.js?v=20261001-6"></script>
-<script src="platform.js?v=20261001-6"></script>
-<script src="catalog.js?v=20261001-6"></script>
-<script src="size.js?v=20261001-6"></script>
-<script src="rot.js?v=20261001-6"></script>
-<script src="app.js?v=20261001-6"></script>
+<script src="config.js?v=20261001-8"></script>
+<script src="supabase.js?v=20261001-8"></script>
+<script src="platform.js?v=20261001-8"></script>
+<script src="catalog.js?v=20261001-8"></script>
+<script src="size.js?v=20261001-8"></script>
+<script src="rot.js?v=20261001-8"></script>
+<script src="app.js?v=20261001-8"></script>
 </body>
 </html>
