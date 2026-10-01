@@ -738,7 +738,7 @@ function trendSection(){const T=S.trends||[];if(!T.length||B.hidden||B.mine||B.q
     .sort((a,b)=>((b.r.s||[]).some(x=>keys.has(x))-(a.r.s||[]).some(x=>keys.has(x)))||score(b)-score(a)).slice(0,10);
   if(!rows.length)return "";
   const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e3?Math.round(n/1e3)+"K":String(n);
-  return `<section class="b-sec" style="--sc:var(--accent)"><div class="b-head"><h2>Trending this week</h2><p>Brands people are talking about on Reddit and fashion sites, and accounts growing fastest on Instagram. Tap one to find it.</p></div><div class="trend-list">`+
+  return `<section class="b-sec" style="--sc:var(--accent)"><div class="b-head"><h2>Trending this week</h2><p>Brands getting the most mentions on fashion sites and newsletters this week, and accounts growing fastest on Instagram. Tap one to find it.</p></div><div class="trend-list">`+
     rows.map(t=>`<div class="trend"><button class="tn" data-trend="${esc(t.r.b)}">${flagOf(t.r.cc)} ${esc(t.r.b)}</button>
       <span class="ts">${t.week?`<b>${t.week}</b> mention${t.week>1?"s":""}${t.week>t.prev_week?` <span class="upw">▲ ${t.prev_week?"from "+t.prev_week:"new"}</span>`:""}`:""}${t.followers?`${t.week?" · ":""}${fmt(t.followers)} followers${t.growth_30d!=null?` <span class="upw">${+t.growth_30d>=0?"+":""}${t.growth_30d}%</span>`:""}`:""}</span>
       ${t.top_url?`<a href="${esc(t.top_url)}" target="_blank" rel="noopener">${esc(t.top_title||"Top post")}</a>`:""}</div>`).join("")+`</div></section>`}

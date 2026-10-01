@@ -1,8 +1,8 @@
-# Brand trends: Reddit, blogs and Instagram
+# Brand trends: blogs, newsletters and Instagram
 
-Rotation can watch fashion subreddits, blogs and newsletters for brand mentions, and track Instagram follower growth. The results show up for everyone in **Brands → Trending this week**. It all runs free inside your Supabase project. Nothing scrapes sites against their rules: Reddit and Instagram go through their official APIs, and blogs through their public RSS feeds.
+Rotation can watch fashion blogs and newsletters for brand mentions, and track Instagram follower growth. The results show up for everyone in **Brands → Trending this week**. It all runs free inside your Supabase project. Nothing scrapes sites against their rules: blogs come through their public RSS feeds and Instagram through its official API.
 
-You only set this up once, in your own project. Every user of the app sees the results. Steps 1–4 work fine from a phone; step 5 (Instagram) is easier on a computer.
+You only set this up once, in your own project. Every user of the app sees the results. Steps 1, 3 and 4 work fine from a phone; step 5 (Instagram) is easier on a computer.
 
 ## 1. Create the tables
 
@@ -10,13 +10,11 @@ Supabase → **SQL Editor** → New query → paste all of `supabase/collectors.
 
 This adds the shared tables, a starter list of 8 fashion feeds (edit them any time in **Table Editor → feeds**), and the `brand_suggestions` table for brands people suggest from the app.
 
-## 2. Make a Reddit app (free)
+## 2. Reddit (skip for now)
 
-1. Sign in at reddit.com, then open **reddit.com/prefs/apps**.
-2. Tap **create another app**. Name: `rotation-trends`. Type: **script**. Redirect URI: `http://localhost` (it isn't used).
-3. Save. Copy the short code under the app name (the **client ID**) and the **secret**.
+Reddit now requires approval before any app can use its API, and its [Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy) bans "mining" Reddit data, commercial or not. Counting brand mentions across subreddits is close enough to that that approval is unlikely, so Rotation runs without Reddit. Blogs, newsletters and Instagram still work.
 
-If Reddit asks you to register for API access, describe it as a personal, non-commercial project that counts brand mentions in public posts.
+If you apply anyway and Reddit approves it, add `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` as secrets in step 3 and turn on the Reddit lines in `schedule.sql`. Don't work around it with Reddit's RSS feeds or by scraping; that breaks the same policy.
 
 ## 3. Deploy the collector
 
@@ -29,16 +27,14 @@ If Reddit asks you to register for API access, describe it as a personal, non-co
 |---|---|
 | `CRON_SECRET` | Any long random text. Make one up and keep it somewhere. |
 | `APP_URL` | Your app's address, like `https://yourname.github.io/rotation` |
-| `REDDIT_CLIENT_ID` | From step 2 |
-| `REDDIT_CLIENT_SECRET` | From step 2 |
 
 Never put these in the app's files. They live only in Supabase.
 
 ## 4. Turn on the schedule
 
-SQL Editor → paste `supabase/schedule.sql` → replace `PASTE_YOUR_CRON_SECRET` in all 3 places with your `CRON_SECRET` → **Run**.
+SQL Editor → paste `supabase/schedule.sql` → replace every `PASTE_YOUR_CRON_SECRET` with your `CRON_SECRET` → **Run**.
 
-Reddit runs every 6 hours and blogs twice a day. To check it worked, wait for the next run, or run the last commented line in that file to see the replies. After a day, **Table Editor → brand_mentions** fills up and the Trending section appears in the app.
+Blogs and newsletters run twice a day. To check it worked, wait for the next run, or run the last commented line in that file to see the replies. After a day, **Table Editor → brand_mentions** fills up and the Trending section appears in the app.
 
 ## 5. Instagram follower growth (optional)
 

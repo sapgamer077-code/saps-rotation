@@ -9,7 +9,7 @@ A closet app anyone can use: daily fits from what you own, a next-buys list that
 - **Their own brand atlas.** Built from a shared catalog of about 3,900 brands from around 80 countries, filtered to their styles, audience and budget, with a *Based in* region filter. They can mark Own / Want, hide brands, and add their own.
 - **Optional Gemini.** With a free Gemini key, *Personalize with Gemini* adds brands picked just for them (including ones outside the catalog), and Next buys, inspo reading and photo tagging turn on.
 - **Measurements & sizes.** In *You*, chest, waist, hips, inseam and shoe size become sizes in US, UK, EU, Japanese and Korean sizing. *Sizes that fit you* records brands they own and how they fit, and Next buys uses both.
-- **Trending.** Optional collectors (see `COLLECTORS.md`) count brand mentions on Reddit and fashion blogs and track Instagram follower growth, shown to everyone under *Brands → Trending this week*.
+- **Trending.** Optional collectors (see `COLLECTORS.md`) count brand mentions on fashion blogs and newsletters and track Instagram follower growth, shown to everyone under *Brands → Trending this week*.
 - **Next buys.** Without AI it ranks pieces from their styles by tagged pins (newer pins count more), their want-more-of list, their budget and what their closet unlocks. With Gemini it builds the list from their pins and closet.
 
 ## Supabase settings for a shared app
