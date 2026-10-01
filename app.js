@@ -255,7 +255,7 @@ ${pr?`Their style profile from saved inspo: ${pr.summary} Silhouettes they like:
 ${liked.length?`Fits they liked: ${liked.map(f=>names(f.items)).join(" | ")}`:""}
 ${nope.length?`Fits they rejected: ${nope.map(f=>names(f.items)).join(" | ")}`:""}
 Style definitions: ${styleDefs(keys)}.
-Today: ${temp}°F, ${wx}.${plan?` Plans: ${plan}.`:""}${recreate?" The attached image is an inspo outfit: recreate it as closely as possible with their clothes.":` Style: ${vibe==="any"?`any of ${keys.join(" / ")}, vary them`:vibe}.`}
+Today: ${temp}°F, ${wx}.${WX.data?` Forecast: ${weatherText()}.`:""}${plan?` Plans: ${plan}.`:""}${recreate?" The attached image is an inspo outfit: recreate it as closely as possible with their clothes.":` Style: ${vibe==="any"?`any of ${keys.join(" / ")}, vary them`:vibe}.`}
 
 Closet (id | name | type | color | silhouette, length | warmth 1-3 | styles | notes). Use ONLY these ids:
 ${closetText(pool)}
@@ -652,9 +652,10 @@ function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase
 let sayTimer=null,lastSaid="";
 function say(text,animate){const el=$("rot-say");if(!el)return;clearInterval(sayTimer);lastSaid=text;
   const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if(!animate||reduce){el.textContent=text;return}
+  const hint=()=>{const h=document.createElement("span");h.className="talk";h.textContent="tap to talk to rot";el.appendChild(h)};
+  if(!animate||reduce){el.textContent=text;hint();return}
   let i=0;el.textContent="";const caret=document.createElement("span");caret.className="rot-caret";
-  sayTimer=setInterval(()=>{i+=2;el.textContent=text.slice(0,i);el.appendChild(caret);if(i>=text.length){clearInterval(sayTimer);el.textContent=text}},22)}
+  sayTimer=setInterval(()=>{i+=2;el.textContent=text.slice(0,i);el.appendChild(caret);if(i>=text.length){clearInterval(sayTimer);el.textContent=text;hint()}},22)}
 function sayNow(animate){const t=rotLine(S.tab);if(t!==lastSaid||animate)say(t,animate)}
 let showColor=false;try{showColor=localStorage.getItem("rot-color")==="1"}catch{}
 function applyColorToggle(){document.body.classList.toggle("show-color",showColor);$("c-color").setAttribute("aria-pressed",showColor);$("c-color").textContent=showColor?"Two-tone":"Show colors"}
@@ -742,6 +743,117 @@ function trendSection(){const T=S.trends||[];if(!T.length||B.hidden||B.mine||B.q
     rows.map(t=>`<div class="trend"><button class="tn" data-trend="${esc(t.r.b)}">${flagOf(t.r.cc)} ${esc(t.r.b)}</button>
       <span class="ts">${t.week?`<b>${t.week}</b> mention${t.week>1?"s":""}${t.week>t.prev_week?` <span class="upw">▲ ${t.prev_week?"from "+t.prev_week:"new"}</span>`:""}`:""}${t.followers?`${t.week?" · ":""}${fmt(t.followers)} followers${t.growth_30d!=null?` <span class="upw">${+t.growth_30d>=0?"+":""}${t.growth_30d}%</span>`:""}`:""}</span>
       ${t.top_url?`<a href="${esc(t.top_url)}" target="_blank" rel="noopener">${esc(t.top_title||"Top post")}</a>`:""}</div>`).join("")+`</div></section>`}
+
+/* ---------- live weather (Open-Meteo: free, no key) ---------- */
+const WX={loc:null,data:null,at:0,edited:false};
+try{WX.loc=JSON.parse(localStorage.getItem("rot-loc")||"null")}catch{}
+const WX_CODES={0:"Clear",1:"Mostly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Fog",51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",56:"Freezing drizzle",57:"Freezing drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",66:"Freezing rain",67:"Freezing rain",71:"Light snow",73:"Snow",75:"Heavy snow",77:"Snow grains",80:"Showers",81:"Showers",82:"Heavy showers",85:"Snow showers",86:"Snow showers",95:"Thunderstorms",96:"Thunderstorms",99:"Thunderstorms"};
+function wxBucket(code,wind){if([71,73,75,77,85,86].includes(code))return "Snow";if(code>=51&&code<=99&&code!==71)return "Rain";if(wind>=20)return "Windy";if(code>=2)return "Cloudy";return "Clear"}
+function saveLoc(l){WX.loc=l;try{localStorage.setItem("rot-loc",JSON.stringify(l))}catch{}}
+async function loadWeather(force){if(!WX.loc){paintWeather();return}if(!force&&WX.data&&Date.now()-WX.at<30*60e3){paintWeather();return}
+  $("wx-line").textContent="Checking the weather…";
+  try{const {lat,lon}=WX.loc;const u=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=1`;
+    const j=await (await fetch(u)).json();if(!j.current)throw 0;
+    WX.data={temp:Math.round(j.current.temperature_2m),feels:Math.round(j.current.apparent_temperature),code:j.current.weather_code,wind:Math.round(j.current.wind_speed_10m),
+      hi:Math.round(j.daily.temperature_2m_max[0]),lo:Math.round(j.daily.temperature_2m_min[0]),rain:j.daily.precipitation_probability_max[0]??0,dayCode:j.daily.weather_code[0]};WX.at=Date.now();
+    if(!WX.edited){const d=WX.data;$("m-temp").value=d.feels;const wet=d.rain>=50&&[61,63,65,80,81,82,95,71,73,75].includes(d.dayCode);$("m-wx").value=wet?wxBucket(d.dayCode,d.wind):wxBucket(d.code,d.wind)}
+    paintWeather();if(S.tab==="make")sayNow()}
+  catch{$("wx-line").textContent="Couldn't reach the weather service. Set it by hand below, or tap Refresh.";$("wx-refresh").hidden=false}}
+function paintWeather(){const d=WX.data,l=WX.loc;$("wx-refresh").hidden=!l;$("wx-here").textContent=l?"Update location":"Use my location";$("wx-city").textContent=l?"Change city":"Pick a city";
+  if(!l){$("wx-line").textContent="Set your location to fill in today's weather automatically.";return}
+  if(!d)return;$("wx-line").innerHTML=`<b>${esc(l.name)}</b> · ${d.temp}°F, feels ${d.feels}° · ${esc(WX_CODES[d.code]||"")} · H ${d.hi}° / L ${d.lo}°${d.rain?` · ${d.rain}% rain`:""}${d.wind>=15?` · wind ${d.wind} mph`:""}`}
+function weatherText(){const d=WX.data;if(!d)return `${$("m-temp").value||60}°F, ${$("m-wx").value}`;return `${d.temp}°F (feels ${d.feels}°), ${WX_CODES[d.code]||""}, high ${d.hi}° low ${d.lo}°, ${d.rain}% chance of rain, wind ${d.wind} mph${WX.loc?` in ${WX.loc.name}`:""}`}
+["m-temp","m-wx"].forEach(id=>$(id).addEventListener("input",()=>{WX.edited=true}));
+$("wx-refresh").onclick=()=>{WX.edited=false;loadWeather(true)};
+$("wx-here").onclick=()=>{if(!navigator.geolocation){toast("This browser can't share location. Pick a city instead.");return}
+  $("wx-line").textContent="Finding you…";
+  navigator.geolocation.getCurrentPosition(async p=>{const lat=+p.coords.latitude.toFixed(3),lon=+p.coords.longitude.toFixed(3);let name="Your location";
+      try{const r=await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`)).json();name=r.city||r.locality||r.principalSubdivision||name}catch{}
+      saveLoc({lat,lon,name});WX.edited=false;loadWeather(true)},
+    ()=>{$("wx-line").textContent="Location is blocked. Pick a city instead, or allow location for this app in your phone's settings.";$("wx-form").hidden=false},{timeout:12000,maximumAge:30*60e3})};
+$("wx-city").onclick=()=>{$("wx-form").hidden=!$("wx-form").hidden;if(!$("wx-form").hidden)$("wx-q").focus()};
+$("wx-form").onsubmit=async e=>{e.preventDefault();const q=$("wx-q").value.trim();if(!q)return;const box=$("wx-pick");box.innerHTML='<span class="muted">Searching…</span>';
+  try{const r=await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en`)).json();const res=r.results||[];
+    box.innerHTML=res.length?res.map((c,i)=>`<button type="button" class="btn ghost small" data-c="${i}">${esc([c.name,c.admin1,c.country_code].filter(Boolean).join(", "))}</button>`).join(""):'<span class="muted">No match. Try another spelling.</span>';
+    box.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{const c=res[+b.dataset.c];saveLoc({lat:+c.latitude.toFixed(3),lon:+c.longitude.toFixed(3),name:c.name});box.innerHTML="";$("wx-form").hidden=true;$("wx-q").value="";WX.edited=false;loadWeather(true)})}
+  catch{box.innerHTML='<span class="muted">Couldn\'t search right now.</span>'}};
+
+/* ---------- talk to ROT ---------- */
+const CHAT={msgs:[],busy:false};
+try{CHAT.msgs=JSON.parse(localStorage.getItem("rot-chat")||"[]")}catch{}
+function saveChat(){CHAT.msgs=CHAT.msgs.slice(-40);try{localStorage.setItem("rot-chat",JSON.stringify(CHAT.msgs))}catch{}}
+function openChat(){$("rotchat").hidden=false;document.body.classList.add("locked");
+  if(window.ROT&&rotOutfit)ROT.render($("chat-rot"),rotOutfit,{scale:1,seed:7,glitch:true});
+  $("chat-mode").textContent=sample?"gemini mode":"built-in mode";
+  if(!CHAT.msgs.length)CHAT.msgs.push({who:"rot",text:`${S.prefs?.name?S.prefs.name.toLowerCase()+". ":""}i'm rot. i know your closet, your pins and the weather. ask me what to wear, what to buy, or whether something works.`});
+  renderChat();loadWeather();setTimeout(()=>$("chat-in").focus(),50)}
+function closeChat(){$("rotchat").hidden=true;document.body.classList.remove("locked")}
+function renderChat(){const L=$("chat-log");
+  L.innerHTML=CHAT.msgs.map((m,i)=>{if(m.who==="me")return `<div class="msg me">${esc(m.text)}</div>`;
+    const items=(m.items||[]).filter(id=>S.items.some(x=>x.id===id));
+    const brands=(m.brands||[]).map(n=>findBrand(n)).filter(Boolean);
+    return `<div class="msg rot">${esc(m.text)}${items.length?`<div class="chat-fit">${fitItems(items).map(x=>cell(x)).join("")}</div>${piecesHTML(items)}<button class="btn ghost small" style="margin-top:6px" data-chatmq="${i}">ROT tries it on</button>`:""}${brands.length?`<div class="chat-brands">${brands.map(r=>`<button class="brand" data-cb="${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}</div>`}).join("")+
+    (CHAT.busy?`<div class="msg rot typing">thinking…</div>`:"");
+  L.querySelectorAll("[data-chatmq]").forEach(b=>b.onclick=()=>{const m=CHAT.msgs[+b.dataset.chatmq];closeChat();openMannequin(m.items,"ROT's pick","")});
+  L.querySelectorAll("[data-cb]").forEach(b=>b.onclick=()=>{closeChat();goBrands("all",null,b.dataset.cb)});
+  L.scrollTop=L.scrollHeight;
+  const chips=["what should i wear today","what should i buy next","what's my size in japanese brands","which of my pieces go together least"];
+  $("chat-chips").innerHTML=chips.map(c=>`<button type="button" class="btn ghost small" data-chip="${esc(c)}">${esc(c)}</button>`).join("");
+  $("chat-chips").querySelectorAll("[data-chip]").forEach(b=>b.onclick=()=>sendChat(b.dataset.chip))}
+function chatContext(){const pool=S.items.filter(i=>!i.wash);const tc=tagCounts();
+  const pins=Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,c])=>`${PIECE[k]?.short||k} ×${c}`).join(", ");
+  const gaps=liveGaps().slice(0,5).map(g=>g.item).join("; ");
+  const own=[...new Set([...marked("own"),...closetBrands()])].slice(0,30),want=marked("want").slice(0,20);
+  return `${personText()} ${bodyText()} ${tasteText()}
+Their styles: ${styleDefs(userStyles())}.
+${S.profile?`Style profile from their inspo: ${S.profile.summary}`:""}
+${pins?`Pieces that keep showing up in their saved pins: ${pins}.`:""}
+${gaps?`Their current next-buys list: ${gaps}.`:""}
+${own.length?`Brands they own: ${own.join(", ")}.`:""} ${want.length?`Brands they want: ${want.join(", ")}.`:""}
+Weather right now: ${weatherText()}. Today's date: ${new Date().toDateString()}.
+Closet (id | name | type | color | silhouette, length | warmth 1-3 | styles | notes). Items marked in the wash are left out:
+${closetText(pool)}`}
+async function sendChat(text){text=(text||"").trim();if(!text||CHAT.busy)return;$("chat-in").value="";
+  CHAT.msgs.push({who:"me",text});CHAT.busy=true;renderChat();
+  let reply;
+  try{reply=sample?await rotGemini(text):rotBuiltIn(text)}
+  catch(e){reply={text:e?.code==="rate_limited"?"gemini's out of free questions for today. i'll be back tomorrow. built-in answers still work.":e?.code==="bad_key"?"your gemini key got rejected. check it in You → settings.":"lost the connection. try again."}}
+  CHAT.busy=false;CHAT.msgs.push({who:"rot",...reply});saveChat();renderChat()}
+async function rotGemini(text){
+  const hist=CHAT.msgs.slice(-13,-1).map(m=>`${m.who==="me"?"User":"ROT"}: ${m.text}`).join("\n");
+  const prompt=`You are ROT, the stylist character inside the wardrobe app Rotation: an edgy, dithered pixel figure who wears the user's clothes. Voice: all lowercase, short, dry, confident, a little blunt, never mean, no emoji, no hashtags. Give real, specific styling advice using their actual closet, sizes and weather. Keep replies under 90 words unless they ask for detail. Only recommend real brands. If they ask something unrelated to clothes, style, shopping or their day's plans, answer briefly and steer back.
+${chatContext()}
+
+Conversation so far:
+${hist||"(new chat)"}
+User: ${text}
+
+Reply with only JSON: {"reply": your message, "items": [closet ids if you're proposing a specific outfit from their closet, else []], "brands": [up to 4 brand names if you recommend shopping somewhere, else []]}`;
+  const r=await sample.json(prompt,{cache:false});
+  const ids=new Set(S.items.map(i=>i.id));
+  return {text:String(r.reply||"…").slice(0,1200),items:(r.items||[]).filter(id=>ids.has(id)).slice(0,6),brands:(r.brands||[]).map(String).slice(0,4)}}
+function rotBuiltIn(text){const t=text.toLowerCase();const pool=S.items.filter(i=>!i.wash);
+  if(/wear|fit|outfit|dress|today|tonight|tomorrow/.test(t)){
+    if(pool.length<3)return {text:"i need at least a top, bottoms and shoes in your closet before i can dress you."};
+    const temp=+$("m-temp").value||60,wx=$("m-wx").value;const f=fallbackFits(pool,temp,wx,"any")[0];
+    if(!f)return {text:"couldn't make a full fit from what's clean. add more pieces or take some out of the wash."};
+    return {text:`${weatherText().split(",").slice(0,2).join(",").toLowerCase()}. ${f.why.charAt(0).toLowerCase()+f.why.slice(1)}${f.proportion?" "+f.proportion.toLowerCase():""}`,items:f.items}}
+  if(/buy|need|missing|next|shop|get/.test(t)){const g=liveGaps().slice(0,3);if(!g.length)return {text:"tag the pieces in your pins and i'll find what's missing."};
+    return {text:g.map((x,i)=>`${i+1}. ${x.item.toLowerCase()}${x.size?` (your size: ${x.size})`:""}`).join("\n"),brands:[...new Set(g.flatMap(x=>x.brands||[]))].slice(0,4)}}
+  if(/size|fit me|measure/.test(t)){const c=sizeCard();if(!c)return {text:"add your measurements in You → measurements & sizes and i'll convert them for any country."};
+    const a=[];if(c.tops)a.push(`tops ${c.tops.US} (jp ${c.tops.JP}, kr ${c.tops.KR})`);if(c.bottoms)a.push(c.cut==="womens"?`jeans ${c.bottoms.denim}`:`pants ${c.bottoms.US} (eu ${c.bottoms.EU})`);if(c.shoes)a.push(`shoes ${c.shoes.main.toLowerCase()} (eu ${c.shoes.EU}, ${c.shoes.JP})`);
+    return {text:a.join("\n")+"\njapanese and korean labels run small. go up when you're between sizes."}}
+  if(/weather|cold|hot|rain|snow|temp/.test(t))return {text:WX.data?weatherText().toLowerCase()+".":"set your location on make a fit and i'll keep the weather current."};
+  const b=findBrand(text.replace(/^(what about|tell me about|is|are|how is|how's)\s+/i,"").replace(/[?!.]+$/,""));
+  if(b)return {text:`${b.b.toLowerCase()}${b.cc?` (${(countryOf(b)||b.cc).toLowerCase()})`:""}. ${(b.n||"").toLowerCase()} ${TIER[b.t]||""}`.trim(),brands:[b.b]};
+  return {text:"in built-in mode i can do: what to wear today, what to buy next, your sizes, the weather, and brand lookups. add a free gemini key in You → settings and i can actually talk."}}
+$("rot-cv").parentElement.addEventListener("click",openChat);
+$("rot-say").addEventListener("click",openChat);
+$("chat-close").onclick=closeChat;
+$("rotchat").addEventListener("click",e=>{if(e.target.id==="rotchat")closeChat()});
+$("chat-clear").onclick=()=>{CHAT.msgs=[];saveChat();openChat()};
+$("chat-form").onsubmit=e=>{e.preventDefault();sendChat($("chat-in").value)};
+loadWeather();
 
 /* ---------- saved ---------- */
 function renderSaved(){$("n-saved").textContent=S.fits.length;const l=$("s-list");
