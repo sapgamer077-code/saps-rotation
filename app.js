@@ -2,7 +2,7 @@
 
 const CATS=[["top","Tee / shirt"],["mid","Hoodie / knit"],["outer","Jacket / coat"],["bottom","Pants / shorts"],["shoes","Shoes"],["acc","Accessory"]];
 const CATNAME=Object.fromEntries(CATS);
-const S={items:[],inspo:[],fits:[],feedback:[],marks:[],gapfb:[],mybrands:[],wears:[],swipes:[],fitref:[],sizes:null,trends:null,pool:[],ai:null,prefs:null,loaded:false,profile:null,gaps:null,body:null,filter:"all",tab:null,recreate:null,editing:null,pending:{flat:null,body:null},lastFits:[]};
+const S={items:[],inspo:[],fits:[],feedback:[],marks:[],gapfb:[],mybrands:[],wears:[],swipes:[],prices:[],pricealerts:[],fitref:[],sizes:null,trends:null,pool:[],ai:null,prefs:null,loaded:false,profile:null,gaps:null,body:null,filter:"all",tab:null,recreate:null,editing:null,pending:{flat:null,body:null},lastFits:[]};
 let db=null,assets=null,sample=null,imgMax=0,ctl=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -346,6 +346,7 @@ function renderGaps(){const g=curGaps(),box=$("g-list");const list=liveGaps();$(
       <p class="rot-line">${esc((x.why||"").charAt(0).toLowerCase()+(x.why||"").slice(1))}</p>
       ${(x.pins||x.unlocks)?`<div class="gap-stats">${x.pins?`<span><b>${+x.pins}</b> of your pins</span>`:""}${x.unlocks?`<span><b>${+x.unlocks}+</b> new fits with your closet</span>`:""}</div>`:""}
       ${x.size?`<span class="gap-size">Your size: ${esc(x.size)}</span>`:""}
+      ${typeof priceLine==="function"?priceLine(pwKeyGap(x.item)):""}
       ${(()=>{const t=window.SIZE?fitTips(x,brands):[];return t.length?`<p class="gap-fit">${t.map(([b,s])=>`<b>${esc(b)}</b>: ${esc(s)}`).join(" · ")}</p>`:""})()}
       ${brands.length?`<div class="brands">${brands.map(r=>`<button class="brand" data-go="${esc((r.s||["all"])[0])}|${esc(r.c)}|${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}
       <button class="atlas-link" data-go="${esc(x.atlasStyle||x.vibe||"")}|${esc(x.atlasCat||"")}|${esc(x.search||"")}">Browse ${esc(x.search||x.atlasCat||"this")} in Brands →</button>
@@ -658,7 +659,7 @@ function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase
     const td=rotOutfit?.today,its=td?fitItems(td.ids):[],main=its.find(i=>i.cat==="outer")||its.find(i=>i.cat==="mid")||its.find(i=>i.cat==="bottom");
     return `${$("m-temp").value||60}° and ${($("m-wx").value||"clear").toLowerCase()}.${main?(td.worn?` matching you today: your ${main.name.toLowerCase()}.`:` today i'm in your ${main.name.toLowerCase()}.`):""} want three fits?`}
   if(t==="closet"){if(!n)return "empty closet. add a piece and i'll start wearing it.";const idl=typeof idlePieces==="function"?idlePieces(1)[0]:null;if(idl)return `${idl.i.name.toLowerCase()}: ${idl.w.since} days untouched. wear it or let it go.`;return `${n} pieces. mostly ${st}.${wornItem?` wearing your ${wornItem.name.toLowerCase()} right now.`:""}`}
-  if(t==="buys"){const g=liveGaps()[0];return g?`${g.item.toLowerCase()}. that's the gap.`:"tag the pieces in your pins and i'll find what's missing."}
+  if(t==="buys"){const pa=(S.pricealerts||[]).filter(a=>!a.seen&&Date.now()-a.at<7*864e5).sort((a,b)=>b.at-a.at)[0];if(pa)return `price drop. ${pa.label.toLowerCase()} is ${money2(pa.to,pa.currency)}${pa.store?` at ${pa.store.toLowerCase()}`:""}. move.`;const g=liveGaps()[0];return g?`${g.item.toLowerCase()}. that's the gap.`:"tag the pieces in your pins and i'll find what's missing."}
   if(t==="brands")return `${myAtlas().length} brands for ${userStyles().map(k=>styleName(k).toLowerCase()).join(", ")}. hide what isn't you.`;
   if(t==="inspo"){const c=tagCounts(),top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];if(!S.inspo.length)return "drop screenshots here. i read what you save.";
     return top?`${S.inspo.length} pins. ${(PIECE[top]?.short||top).toLowerCase()} keeps showing up.`:`${S.inspo.length} pins. tag what's in them so i can read them.`}
@@ -1008,7 +1009,7 @@ $("swf").onsubmit=async e=>{e.preventDefault();const urls=[...new Set(($("swf-ur
 function renderLikes(){const box=$("sw-likes");if(!box)return;const likes=S.swipes.filter(s=>s.v===1).sort((a,b)=>b.at-a.at);
   if(SW.list&&$("sw-count"))$("sw-count").textContent=deck().length?`${deck().length} to swipe`:"";
   if(!likes.length){box.innerHTML="";return}
-  box.innerHTML=`<div class="panel"><h2>Liked from the deck</h2><p class="muted" style="font-size:.9rem">These count like pins: what you like here moves your Next buys.</p><div class="like-grid">${likes.map(s=>`<div class="like"><img src="${esc(s.image)}" alt="" referrerpolicy="no-referrer" loading="lazy"><div class="b"><span class="t">${esc(s.title)}</span><span class="muted">${esc([s.brand||s.store,priceText(s)].filter(Boolean).join(" · "))}</span><div class="row"><a href="${esc(s.url)}" target="_blank" rel="noopener">Buy ↗</a><button class="btn ghost small" data-unlike="${esc(String(s.pid))}">Remove</button></div></div></div>`).join("")}</div></div>`;
+  box.innerHTML=`<div class="panel"><h2>Liked from the deck</h2><p class="muted" style="font-size:.9rem">These count like pins: what you like here moves your Next buys.</p><div class="like-grid">${likes.map(s=>`<div class="like"><img src="${esc(s.image)}" alt="" referrerpolicy="no-referrer" loading="lazy"><div class="b"><span class="t">${esc(s.title)}</span><span class="muted">${esc([s.brand||s.store,priceText(s)].filter(Boolean).join(" · "))}</span>${typeof priceLine==="function"?priceLine("p"+s.pid):""}<div class="row"><a href="${esc(s.url)}" target="_blank" rel="noopener">Buy ↗</a><button class="btn ghost small" data-unlike="${esc(String(s.pid))}">Remove</button></div></div></div>`).join("")}</div></div>`;
   box.querySelectorAll("[data-unlike]").forEach(b=>b.onclick=async()=>{const id=b.dataset.unlike;S.swipes=S.swipes.filter(s=>String(s.pid)!==id);renderLikes();renderGaps();if(db)try{await db.doc("swipes/p"+id).delete()}catch{}})}
 
 /* ---------- trip packing ---------- */
@@ -1276,6 +1277,47 @@ Judge the outfit itself (fit, proportions, colors, shoes, how it reads for their
   catch(e){$("st-status").textContent=sampleErr(e)}finally{$("st-rate").disabled=false}};
 $("you-stand").onclick=()=>openStand(null,"");
 
+/* ---------- price watch (needs Gemini) ---------- */
+const PW={busy:false};
+const pwKeyGap=item=>"g-"+hashStr(normTxt(item));
+function pwTargets(){const gaps=liveGaps().slice(0,5).map(x=>({key:pwKeyGap(x.item),kind:"gap",label:x.item,brands:(x.brands||[]).slice(0,4),size:x.size||""}));
+  const likes=S.swipes.filter(s=>s.v===1).sort((a,b)=>b.at-a.at).slice(0,6).map(s=>({key:"p"+s.pid,kind:"like",label:s.title,brand:s.brand||"",url:s.url,store:s.store,price:s.price,currency:s.currency}));
+  return [...gaps,...likes]}
+const pwOf=key=>S.prices.find(p=>p.id===key);
+const money2=(v,c)=>v==null?"":`${CUR?.[c]||(c&&c!=="USD"?c+" ":"$")}${(+v)>=100||Number.isInteger(+v)?Math.round(+v).toLocaleString():(+v).toFixed(2)}`;
+function pwAgo(at){const m=Math.round((Date.now()-at)/6e4);return m<60?`${m}m ago`:m<1440?`${Math.round(m/60)}h ago`:`${Math.round(m/1440)}d ago`}
+async function checkPrices(force){if(!sample||!db||PW.busy)return;const targets=pwTargets();if(!targets.length)return;
+  const last=Math.max(0,...S.prices.map(p=>p.checked||0));if(!force&&Date.now()-last<12*36e5)return;
+  PW.busy=true;$("pw-check").disabled=true;$("pw-meta").textContent="Gemini is checking prices…";
+  const region=(navigator.language||"en-US").split("-")[1]||"US",budget=S.prefs?.budget||2;
+  const prompt=`You're a price tracker for a wardrobe app. Search the web for the current price of each item below, the way a shopper in region ${region} would buy it new today. ${personText()}
+Budget: ${budget===1?"budget ($)":budget===2?"mid-range ($$)":"open to premium and resale"}.
+For general items, find the best-value current listing from a reputable retailer, preferring the suggested brands. For specific products with a link, check that exact product.
+Mark "sale": true only when the listing shows a markdown from a higher price, and put that original price in "was".
+Items:
+${targets.map(t=>t.kind==="gap"?`- key ${t.key}: ${t.label}${t.brands.length?` (suggested brands: ${t.brands.join(", ")})`:""}${t.size?` (size ${t.size})`:""}`:`- key ${t.key}: ${t.label}${t.brand?` by ${t.brand}`:""}, product page ${t.url}`).join("\n")}
+Reply with only JSON, no other text: {"prices":[{"key": same key, "price": number, "currency": "USD" or the 3-letter code, "store": shop name, "url": product page link, "sale": true/false, "was": original price or null, "note": under 12 words}]}. Leave an item out if you can't find a real current listing.`;
+  try{const r=await sample.json(prompt,{search:true,cache:false});const by=new Map(targets.map(t=>[t.key,t]));const now=Date.now(),alerts=[];
+    for(const p of (r.prices||[])){const t=by.get(String(p.key));const price=+p.price;if(!t||!isFinite(price)||price<=0)continue;
+      const url=/^https:\/\//.test(String(p.url||""))?String(p.url):t.url||"";const pt={at:now,price,currency:String(p.currency||"USD").slice(0,3).toUpperCase(),store:String(p.store||"").slice(0,60),url,sale:!!p.sale,was:+p.was||null,note:String(p.note||"").slice(0,90)};
+      const cur=pwOf(t.key),hist=[...(cur?.history||[]),pt].slice(-30),prev=cur?.last,low=Math.min(...(cur?.history||[]).map(h=>h.price),Infinity);
+      const drop=prev&&pt.currency===prev.currency&&price<=prev.price*0.95,newSale=pt.sale&&!(prev?.sale),newLow=isFinite(low)&&price<low;
+      await db.doc("prices/"+t.key).set({kind:t.kind,label:t.label,last:pt,history:hist,checked:now});
+      if(drop||newSale||newLow){const a={key:t.key,label:t.label,to:price,from:drop?prev.price:pt.was||null,currency:pt.currency,store:pt.store,url,sale:pt.sale,at:now};alerts.push(a);await db.doc("pricealerts/"+t.key+"-"+now).set(a)}}
+    for(const t of targets)if(!pwOf(t.key)&&!(r.prices||[]).some(p=>String(p.key)===t.key))await db.doc("prices/"+t.key).set({kind:t.kind,label:t.label,last:null,history:[],checked:now});
+    $("pw-meta").textContent=alerts.length?`${alerts.length} price drop${alerts.length>1?"s":""} found.`:"Checked. No drops yet.";if(alerts.length)toast(`rot › ${alerts[0].label.toLowerCase()} dropped to ${money2(alerts[0].to,alerts[0].currency)}.`)}
+  catch(e){$("pw-meta").textContent=sampleErr(e)}
+  finally{PW.busy=false;$("pw-check").disabled=false;renderPrices()}}
+function priceLine(key){const p=pwOf(key);if(!p?.last)return "";const l=p.last;
+  return `<div class="gap-price"><span>${l.sale?`<span class="sale">SALE</span> `:""}<b>${esc(money2(l.price,l.currency))}</b>${l.was?` <span class="was">${esc(money2(l.was,l.currency))}</span>`:""}</span><span>at ${l.url?`<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.store||"the shop")} ↗</a>`:esc(l.store||"")}</span><span class="muted">checked ${pwAgo(p.checked)}</span></div>`}
+function renderPrices(){const box=$("pw");if(!box)return;box.hidden=!sample;const dot=$("tab-buys").querySelector(".dot");const fresh=S.pricealerts.filter(a=>!a.seen&&Date.now()-a.at<7*864e5);
+  if(fresh.length&&!dot)$("tab-buys").insertAdjacentHTML("beforeend",'<span class="dot" aria-label="New price drops"></span>');else if(!fresh.length&&dot)dot.remove();
+  if(!sample)return;const last=Math.max(0,...S.prices.map(p=>p.checked||0));
+  if(!PW.busy)$("pw-meta").textContent=last?`Gemini checks prices of your top next buys and liked products every 12 hours. Last check ${pwAgo(last)}.`:"Gemini will check prices of your top next buys and liked products.";
+  $("pw-alerts").innerHTML=fresh.sort((a,b)=>b.at-a.at).slice(0,4).map(a=>`<div class="pw-alert"><p>rot › ${esc(a.label.toLowerCase())} ${a.sale&&!a.from?"is on sale":"dropped"}${a.from?` from ${esc(money2(a.from,a.currency))}`:""} to <b>${esc(money2(a.to,a.currency))}</b>${a.store?` at ${esc(a.store)}`:""}.${a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener">see it ↗</a>`:""}</p><button class="btn ghost small" data-seen="${esc(a.id)}">Got it</button></div>`).join("");
+  $("pw-alerts").querySelectorAll("[data-seen]").forEach(b=>b.onclick=async()=>{const a=S.pricealerts.find(x=>x.id===b.dataset.seen);if(a&&db)try{await db.doc("pricealerts/"+a.id).set({...a,id:undefined,seen:true})}catch{}})}
+$("pw-check").onclick=()=>checkPrices(true);
+
 /* ---------- saved ---------- */
 function renderSaved(){$("n-saved").textContent=S.fits.length;const l=$("s-list");
   l.innerHTML=S.fits.length?S.fits.map(f=>fitCard(f,0,"saved")).join(""):`<div class="empty"><h3>No saved fits</h3><p>Hit Save on a fit you'd actually wear and it lands here.</p></div>`;
@@ -1311,10 +1353,13 @@ renderAll();RP.renderSettings();renderRot();const HASH_TAB=(location.hash||"").s
   db.collection("profile").orderBy("at","desc").limit(1).onSnapshot(q=>{S.profile=q.docs[0]?q.docs[0].data():null;renderInspo()},()=>{});
   db.collection("gaps").orderBy("at","desc").limit(1).onSnapshot(q=>{S.gaps=q.docs[0]?q.docs[0].data():null;renderGaps();if(S.tab==="brands")renderBrands();if(S.tab==="buys")maybeAutoRefresh()},()=>{});
   db.doc("sizes/me").onSnapshot(d=>{S.sizes=d.exists?d.data():null;if(!sample)renderGaps();if(S.tab==="you")fillSizeForm()},()=>{});
+  sub(db.collection("prices"),"prices",()=>{renderPrices();renderGaps();renderLikes()});
+  sub(db.collection("pricealerts").orderBy("at","desc").limit(50),"pricealerts",()=>{renderPrices();if(S.tab==="buys")sayNow()});
   sub(db.collection("swipes"),"swipes",()=>{renderLikes();if(!sample)renderGaps()});
   sub(db.collection("wears").orderBy("at","desc").limit(1000),"wears",()=>{wearCache=null;renderRot();renderCloset();renderFits();renderSaved();sayNow()});
   sub(db.collection("fitref"),"fitref",()=>{renderFitRefs();renderGaps()});
   db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;renderRot();if(S.tab==="you")fillBodyForm()},()=>{});
   // New here? Ask the style quiz once the account's data has had a chance to sync down.
   await RP.firstSync;if(!S.prefs)openOnboard();
+  renderPrices();setTimeout(()=>checkPrices(false),4000);
 })();

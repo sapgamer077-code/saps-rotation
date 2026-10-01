@@ -13,6 +13,7 @@ A closet app anyone can use: daily fits from what you own, a next-buys list that
 - **Wear tracking.** "Wore this" on any fit or piece logs it. The closet shows wear counts, cost per wear and what's been sitting longest, and the fit maker rotates toward idle pieces.
 - **Swipe deck.** Real products from links people paste (read like a link preview). Likes count like pins in Next buys. Setup in `COLLECTORS.md`.
 - **Trip packing.** City, dates and plans become one outfit per day and a packing list, from the forecast (or last year's weather if it's too far out).
+- **Price watch (Gemini only).** Gemini searches the web for current prices of the top 5 Next buys and your liked products when the app opens (every 12 hours) or on demand, keeps a price history, and flags drops and sales on the Next buys tab.
 - **ROT's fit of the day.** ROT wears a different fit from your closet each day for the weather, or exactly what you logged as worn today.
 - **ROT.** Tap ROT to chat. With Gemini it answers anything about your clothes and can save fits, log wears, add wants and mark the wash when you tap to confirm.
 - **ROT in your pic.** Drop ROT into a real fit photo in one of 27 poses (looming, barrage, many arms, landing, handstand…), animated, with Manifest / Impact / Clean looks and video export, placed behind you with a dithered aura (your cut-out runs on the phone). With Gemini, ROT can rate the fit.

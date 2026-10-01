@@ -225,7 +225,7 @@
         r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: "POST", signal: opts.signal,
           headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey },
-          body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: opts.json ? { responseMimeType: "application/json" } : {} }),
+          body: JSON.stringify(Object.assign({ contents: [{ role: "user", parts }], generationConfig: opts.json && !opts.search ? { responseMimeType: "application/json" } : {} }, opts.search ? { tools: [{ google_search: {} }] } : {})),
         });
       } catch (e) { if (e.name === "AbortError") throw { code: "cancelled" }; throw { code: "network", message: String(e) } }
       const j = await r.json().catch(() => ({}));
@@ -236,7 +236,10 @@
       return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
     }
     const s = async (input, opts) => ({ text: await call(input, opts), truncated: false });
-    s.json = async (input, opts = {}) => { const t = await call(input, { ...opts, json: true }); try { return JSON.parse(t.replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim()) } catch { throw { code: "invalid_json" } } };
+    s.json = async (input, opts = {}) => { const t = await call(input, { ...opts, json: true });
+      try { return JSON.parse(t.replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim()) } catch {}
+      const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)) } catch {} }
+      throw { code: "invalid_json" } };
     s.limits = async () => ({ images: { maxCount: 12 } });
     s.model = model;
     return s;

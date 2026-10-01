@@ -301,6 +301,17 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .st-poses button{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1.5px solid var(--line);background:var(--surface);font:500 .65rem var(--mono);color:var(--ink);cursor:pointer}
 .st-poses button[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
 .st-poses canvas{width:56px;height:72px;image-rendering:pixelated}
+.pw{border:1.5px solid var(--ink);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.pw-meta{font:500 .78rem var(--mono)}
+.pw-alert{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;border-left:4px solid var(--accent);background:var(--tag);padding:8px 10px}
+.pw-alert p{margin:0;font:500 .88rem/1.4 var(--mono)}
+.pw-alert a{font-size:.85rem;color:var(--ink)}
+.gap-price{font:500 .82rem/1.4 var(--mono);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.gap-price b{font-size:.95rem}
+.gap-price .sale{background:var(--accent);color:#fff;padding:0 5px;font-weight:700}
+.gap-price .was{text-decoration:line-through;color:var(--muted)}
+.gap-price a{color:var(--ink)}
+.tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle}
 .b-more{grid-column:1/-1;margin:10px 0 4px}
 .wear-box{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1.5px dashed var(--ink);padding:8px 10px}
 .wear-stat{margin:0;font:500 .85rem/1.4 var(--mono)}
@@ -380,7 +391,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-8">
+<link rel="stylesheet" href="theme.css?v=20261001-9">
 </head>
 <body>
 
@@ -503,6 +514,10 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       <p class="muted" id="g-mode"></p>
       <div class="fresh" id="g-fresh" hidden><span id="g-fresh-t"></span><button class="btn small" id="g-fresh-go">Update now</button></div>
       <p class="status" id="g-status" aria-live="polite"></p>
+      <div class="pw" id="pw" hidden>
+        <div class="pw-alerts" id="pw-alerts"></div>
+        <div class="row" style="align-items:center;gap:8px"><button class="btn ghost small" id="pw-check">Check prices now</button><span class="muted pw-meta" id="pw-meta"></span></div>
+      </div>
       <div class="sw-bar"><button class="btn" id="sw-open">Swipe real products</button><button class="btn ghost" id="sw-add">Add product links</button><span class="muted" id="sw-count"></span></div>
     </div>
     <div class="likes" id="sw-likes"></div>
@@ -728,12 +743,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-8"></script>
-<script src="supabase.js?v=20261001-8"></script>
-<script src="platform.js?v=20261001-8"></script>
-<script src="catalog.js?v=20261001-8"></script>
-<script src="size.js?v=20261001-8"></script>
-<script src="rot.js?v=20261001-8"></script>
-<script src="app.js?v=20261001-8"></script>
+<script src="config.js?v=20261001-9"></script>
+<script src="supabase.js?v=20261001-9"></script>
+<script src="platform.js?v=20261001-9"></script>
+<script src="catalog.js?v=20261001-9"></script>
+<script src="size.js?v=20261001-9"></script>
+<script src="rot.js?v=20261001-9"></script>
+<script src="app.js?v=20261001-9"></script>
 </body>
 </html>
