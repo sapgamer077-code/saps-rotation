@@ -391,7 +391,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-9">
+<link rel="stylesheet" href="theme.css?v=20261001-11">
 </head>
 <body>
 
@@ -618,7 +618,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       <label class="drop" id="d-flat"><span class="label">Flat-lay / hanger</span><span class="muted" style="font-size:.85rem">Plain background, even light</span><img id="p-flat" alt="" hidden><input type="file" id="f-flat" accept="image/*"></label>
       <label class="drop" id="d-body"><span class="label">On you (optional)</span><span class="muted" style="font-size:.85rem">Same spot and distance every time (see You tab)</span><img id="p-body" alt="" hidden><input type="file" id="f-body" accept="image/*"></label>
     </div>
-    <div class="row"><button type="button" class="btn ghost" id="f-auto">Tag it from the photos</button><span class="status" id="f-status" aria-live="polite"></span></div>
+    <div class="row"><button type="button" class="btn ghost" id="f-auto">Identify &amp; tag</button><span class="status" id="f-status" aria-live="polite"></span></div>
     <div class="field"><label class="label" for="f-name">Name</label><input type="text" id="f-name" placeholder="Brown double-knee work pants" required></div>
     <div class="row">
       <div class="field"><label class="label" for="f-cat">Type</label><select id="f-cat"></select></div>
@@ -743,12 +743,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-9"></script>
-<script src="supabase.js?v=20261001-9"></script>
-<script src="platform.js?v=20261001-9"></script>
-<script src="catalog.js?v=20261001-9"></script>
-<script src="size.js?v=20261001-9"></script>
-<script src="rot.js?v=20261001-9"></script>
-<script src="app.js?v=20261001-9"></script>
+<script src="config.js?v=20261001-11"></script>
+<script src="supabase.js?v=20261001-11"></script>
+<script src="platform.js?v=20261001-11"></script>
+<script src="catalog.js?v=20261001-11"></script>
+<script src="size.js?v=20261001-11"></script>
+<script src="rot.js?v=20261001-11"></script>
+<script src="app.js?v=20261001-11"></script>
 </body>
 </html>

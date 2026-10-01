@@ -222,7 +222,7 @@
       for (const im of (opts.images || [])) parts.push({ inline_data: { mime_type: im.type || "image/jpeg", data: await b64(im) } });
       let r;
       try {
-        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model || model)}:generateContent`, {
           method: "POST", signal: opts.signal,
           headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey },
           body: JSON.stringify(Object.assign({ contents: [{ role: "user", parts }], generationConfig: opts.json && !opts.search ? { responseMimeType: "application/json" } : {} }, opts.search ? { tools: [{ google_search: {} }] } : {})),

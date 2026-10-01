@@ -69,30 +69,46 @@ function openSheet(it){S.editing=it||null;S.pending={flat:null,body:null};$("f")
 $("c-add").onclick=()=>openSheet(null);
 $("f-close").onclick=()=>$("sheet").hidden=true;
 $("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")$("sheet").hidden=true});
-for(const k of ["flat","body"])$("f-"+k).onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=await shrink(f);S.pending[k]=b;setPreview(k,URL.createObjectURL(b));};
+for(const k of ["flat","body"])$("f-"+k).onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=await shrink(f);S.pending[k]=b;setPreview(k,URL.createObjectURL(b));
+  // with Gemini on, a new photo gets identified and tagged right away
+  if(sample&&(!S.editing||!$("f-brand").value))identifyPiece(true)};
 
-$("f-auto").onclick=async()=>{
+// Gemini identifies the piece (brand, model, color) from the photos and fills in the tags
+async function identifyPiece(auto){
   const flat=S.pending.flat||(S.editing?.flat&&await blobFor(S.editing.flat));const body=S.pending.body||(S.editing?.body&&await blobFor(S.editing.body));
   const imgs=[flat,body].filter(Boolean);if(!imgs.length){$("f-status").textContent="Add a photo first.";return}
-  $("f-status").textContent="Looking at the photos…";$("f-auto").disabled=true;
+  $("f-status").textContent=auto?"ROT is identifying it…":"Looking at the photos…";$("f-auto").disabled=true;
   const desc=flat&&body?`Image 1 is the item laid flat or on a hanger. Image 2 is the item worn by its owner (${bodyText()}).`:flat?"The image is the item laid flat or on a hanger.":`The image shows the item worn by its owner (${bodyText()}).`;
-  try{const r=await sample.json(`You tag clothing for a personal wardrobe app. ${desc}
+  const prompt=`You identify and tag clothing for a personal wardrobe app. ${desc}
+First identify it like a vintage dealer would: read any visible logo, label, tag, patch, tab, hardware, stitching or signature design detail to work out the brand and the specific model or product line (for example "Levi's 501", "Carhartt WIP Detroit Jacket", "Timberland PRO 6-inch", "Uniqlo U crewneck"). You may search the web to confirm a model name. Only name a brand or model you can actually support from what's visible; otherwise leave it empty and describe the piece.
 Reply with only a JSON object:
-{"name": short descriptive name like "Washed black boxy hoodie",
+{"brand": brand name or "",
+ "model": model or product line or "",
+ "confidence": "high" | "medium" | "low",
+ "clues": short phrase on what gave it away (e.g. "red tab and arcuate stitching"), or "",
+ "name": name in the form "Brand Model, color" when known (e.g. "Levi's 501 jeans, faded black"), otherwise a short descriptive name like "Washed black boxy hoodie",
  "cat": one of ${JSON.stringify(CATS.map(c=>c[0]))} (top=tee/shirt, mid=hoodie/sweater/knit, outer=jacket/coat, acc=hat/bag/jewelry/belt),
  "color": plain color description,
  "sil": one of ["slim","regular","relaxed","oversized"],
  "len": one of ["cropped","regular","long"],
  "warmth": 1, 2 or 3,
  "vibes": subset of ${JSON.stringify(userStyles())} (${styleDefs()}),
- "fitNotes": ${body?"one or two sentences on how it sits on their body: where hems land, drape, shoulder fit, leg shape, stacking":"\"\""}}`,{images:imgs.slice(0,imgMax||2)});
-    if(r.name)$("f-name").value=r.name;if(CATNAME[r.cat])$("f-cat").value=r.cat;if(r.color)$("f-color").value=r.color;
-    if(["slim","regular","relaxed","oversized"].includes(r.sil))$("f-sil").value=r.sil;if(["cropped","regular","long"].includes(r.len))$("f-len").value=r.len;
-    if([1,2,3].includes(+r.warmth))$("f-warm").value=String(+r.warmth);
-    if(Array.isArray(r.vibes))FORMV.forEach(v=>$("fv-"+v).checked=r.vibes.includes(v));
+ "retail": typical new price in USD as a number, or null,
+ "fitNotes": ${body?"one or two sentences on how it sits on their body: where hems land, drape, shoulder fit, leg shape, stacking":"\"\""}}`;
+  try{let r;try{r=await sample.json(prompt,{images:imgs.slice(0,imgMax||2),search:true,cache:false})}catch(e){if(e?.code==="bad_key")throw e;r=await sample.json(prompt,{images:imgs.slice(0,imgMax||2),cache:false})}
+    const keep=auto&&S.editing;// editing an existing piece: only fill what's empty
+    const put=(id,v)=>{if(v==null||v==="")return;if(keep&&$(id).value)return;$(id).value=v};
+    put("f-name",r.name);if(CATNAME[r.cat]&&!(keep&&S.editing))$("f-cat").value=r.cat;put("f-color",r.color);
+    if(["slim","regular","relaxed","oversized"].includes(r.sil)&&!keep)$("f-sil").value=r.sil;if(["cropped","regular","long"].includes(r.len)&&!keep)$("f-len").value=r.len;
+    if([1,2,3].includes(+r.warmth)&&!keep)$("f-warm").value=String(+r.warmth);
+    if(Array.isArray(r.vibes)&&!(keep&&FORMV.some(v=>$("fv-"+v).checked)))FORMV.forEach(v=>$("fv-"+v).checked=r.vibes.includes(v));
+    if(r.brand&&!$("f-brand").value){const b=findBrand(r.brand);$("f-brand").value=b&&normTxt(b.b).startsWith(normTxt(r.brand))?b.b.split(" / ")[0]:r.brand}
     if(r.fitNotes&&!$("f-fit").value)$("f-fit").value=r.fitNotes;
-    $("f-status").textContent="Filled in. Fix anything that's off.";
-  }catch(e){$("f-status").textContent=sampleErr(e)}finally{$("f-auto").disabled=false}};
+    if(+r.retail>0&&!$("f-notes").value)$("f-notes").value=`Retails around $${Math.round(+r.retail)} new.`;
+    const who=[r.brand,r.model].filter(Boolean).join(" ");
+    $("f-status").textContent=who?`rot › looks like ${who.toLowerCase()}${r.confidence?` (${r.confidence} confidence${r.clues?`: ${String(r.clues).toLowerCase()}`:""})`:""}. check the tag if you're not sure, then save.`:"rot › couldn't spot a brand, so i described it. fix anything that's off.";
+  }catch(e){$("f-status").textContent=sampleErr(e)}finally{$("f-auto").disabled=false}}
+$("f-auto").onclick=()=>identifyPiece(false);
 
 $("f").onsubmit=async e=>{e.preventDefault();if(!db){toast("Can't save in this view.");return}
   const btn=$("f-save");btn.disabled=true;btn.textContent="Saving…";
@@ -1297,7 +1313,9 @@ Mark "sale": true only when the listing shows a markdown from a higher price, an
 Items:
 ${targets.map(t=>t.kind==="gap"?`- key ${t.key}: ${t.label}${t.brands.length?` (suggested brands: ${t.brands.join(", ")})`:""}${t.size?` (size ${t.size})`:""}`:`- key ${t.key}: ${t.label}${t.brand?` by ${t.brand}`:""}, product page ${t.url}`).join("\n")}
 Reply with only JSON, no other text: {"prices":[{"key": same key, "price": number, "currency": "USD" or the 3-letter code, "store": shop name, "url": product page link, "sale": true/false, "was": original price or null, "note": under 12 words}]}. Leave an item out if you can't find a real current listing.`;
-  try{const r=await sample.json(prompt,{search:true,cache:false});const by=new Map(targets.map(t=>[t.key,t]));const now=Date.now(),alerts=[];
+  // Google only allows free web search on some Gemini models, so fall back to ones that have it
+  const ask=async()=>{let last;for(const m of [undefined,"gemini-2.5-flash","gemini-2.5-flash-lite"]){try{return await sample.json(prompt,{search:true,cache:false,model:m})}catch(e){last=e;if(e?.code==="bad_key")throw e}}throw last};
+  try{const r=await ask();const by=new Map(targets.map(t=>[t.key,t]));const now=Date.now(),alerts=[];
     for(const p of (r.prices||[])){const t=by.get(String(p.key));const price=+p.price;if(!t||!isFinite(price)||price<=0)continue;
       const url=/^https:\/\//.test(String(p.url||""))?String(p.url):t.url||"";const pt={at:now,price,currency:String(p.currency||"USD").slice(0,3).toUpperCase(),store:String(p.store||"").slice(0,60),url,sale:!!p.sale,was:+p.was||null,note:String(p.note||"").slice(0,90)};
       const cur=pwOf(t.key),hist=[...(cur?.history||[]),pt].slice(-30),prev=cur?.last,low=Math.min(...(cur?.history||[]).map(h=>h.price),Infinity);
