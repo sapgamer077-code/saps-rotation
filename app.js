@@ -23,11 +23,13 @@ function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTim
 function sampleErr(e){const c=e&&e.code;if(c==="rate_limited")return e.daily?"Today's free Gemini limit is used up on every model the app tried. It resets tomorrow.":"Gemini's per-minute limit is hit. Wait a minute and try again.";if(c==="busy")return "Gemini is overloaded right now, even after retrying. Try again in a minute.";return c==="bad_key"||c==="not_granted"?"Google rejected your Gemini key. Check it in You → Settings.":c==="rate_limited"?"Today's free Gemini limit is used up. Try again tomorrow.":c==="bad_model"?"That Gemini model isn't available. Change it in You → Settings.":c==="invalid_json"?"The answer came back garbled. Try again.":c==="network"?"Couldn't reach Gemini. Check your connection.":c==="cancelled"?"Stopped.":"Gemini couldn't answer"+(e&&e.message?": "+e.message:".")}
 
 /* ---------- tabs ---------- */
-function setTab(t){const prev=S.tab;S.tab=t;for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",b.dataset.tab===t);
+function setTab(t){const prev=S.tab;S.tab=t;for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",b.dataset.tab===t||b.dataset.also===t);
   for(const v of ["make","closet","buys","brands","inspo","you","saved"])$("view-"+v).hidden=v!==t;
   if(t==="brands")renderBrands();if(t==="buys")maybeAutoRefresh();
   if(t==="you")openYou();else if(prev==="you")closeYou();if(prev!==t&&typeof sayNow==="function")sayNow(true);if(t==="buys"&&typeof loadProducts==="function")loadProducts().then(renderLikes);}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$("i-more").onclick=()=>{const o=$("i-profile").classList.toggle("open");$("i-more").textContent=o?"Show less":"Read full profile"};
+document.querySelectorAll(".seg [data-go]").forEach(b=>b.onclick=()=>{setTab(b.dataset.go);scrollTo(0,0)});
 
 /* ---------- closet ---------- */
 $("f-cat").innerHTML=CATS.map(([v,l])=>`<option value="${v}">${l}</option>`).join("");
@@ -131,7 +133,7 @@ function renderInspo(){$("n-inspo").textContent=S.inspo.length;$("i-build").hidd
   const g=$("i-grid");
   g.innerHTML=S.inspo.length?S.inspo.map(p=>`<div class="inspo-card"><div class="ph duo"><img src="${src(p.img)}" alt="Inspiration image" loading="lazy"></div>
     ${(p.tags||[]).length?`<div class="pin-tags">${p.tags.map(k=>`<span class="chip">${esc(PIECE[k]?.short||k)}</span>`).join("")}</div>`:""}
-    <div class="row" style="gap:6px"><button class="btn ghost small" data-tag="${esc(p.id)}">${(p.tags||[]).length?"Edit tags":"Tag pieces"}</button><button class="btn ghost small" data-re="${esc(p.id)}">Recreate</button><button class="btn ghost small" data-rm="${esc(p.id)}">Remove</button></div></div>`).join("")
+    <div class="pin-acts"><button class="linkish" data-tag="${esc(p.id)}">${(p.tags||[]).length?"Edit tags":"Tag pieces"}</button><button class="linkish" data-re="${esc(p.id)}">Recreate</button><button class="linkish" data-rm="${esc(p.id)}">Remove</button></div></div>`).join("")
     :`<div class="empty"><h3>No inspo yet</h3><p>Save fits you like from Pinterest, Instagram or TikTok as screenshots and add them here. Tap "Tag pieces" on each one so Next buys learns what you save.</p></div>`;
   g.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>openTagSheet(S.inspo.find(p=>p.id===b.dataset.tag)));
   g.querySelectorAll("[data-re]").forEach(b=>b.onclick=()=>{S.recreate=S.inspo.find(p=>p.id===b.dataset.re);renderRecreate();setTab("make")});
@@ -269,7 +271,7 @@ $("m-stop").onclick=()=>ctl?.abort();
 $("m-go").onclick=async()=>{const pool=S.items.filter(i=>!i.wash);const temp=+$("m-temp").value||60,wx=$("m-wx").value,vibe=$("m-vibe").value,plan=$("m-plan").value.trim();
   if(pool.length<3){$("m-status").textContent="Add at least a top, bottoms and shoes to your closet first.";return}
   if(!sample){S.lastFits=fallbackFits(pool,temp,wx,vibe).map(f=>({...f,key:"f"+Date.now()+Math.random().toString(36).slice(2,6)}));renderFits();
-    $("m-status").textContent=(S.recreate?"Recreating a pin needs a Gemini key (You → Settings). These are your best fits for today instead. ":"Built-in stylist: matched on weather, vibe and proportions. ")+"Rate them so it learns.";return}
+    $("m-status").textContent=(S.recreate?"Recreating a pin needs a Gemini key (You → Settings). These are your best fits for today instead.":"");return}
   const liked=S.feedback.filter(f=>f.vote===1).slice(0,12),nope=S.feedback.filter(f=>f.vote===-1).slice(0,12);
   const names=ids=>ids.map(id=>S.items.find(i=>i.id===id)?.name).filter(Boolean).join(" + ");
   const pr=S.profile;const recreate=S.recreate;
@@ -615,7 +617,7 @@ function renderOnboard(){const d=OB.d,box=$("ob-body"),N=4;
     `<div class="field"><label class="label" for="ob-name">What should we call you?</label><input type="text" id="ob-name" autocomplete="given-name" value="${esc(d.name)}" placeholder="First name or nickname"></div>
      <div class="field"><span class="label">Which clothes do you shop for?</span><div class="chips ob-radio">${[["mens","Menswear"],["womens","Womenswear"],["both","Both"]].map(([v,l])=>`<label class="chip"><input type="radio" name="ob-shop" value="${v}"${d.shop===v?" checked":""}>${l}</label>`).join("")}</div></div>`}
   else if(OB.step===1){html=head("Your styles","Pick the styles you wear","Choose 1 to 4. Your brand atlas and next buys are built from these.")+
-    `<div class="ob-grid">${STYLE_KEYS.map(k=>`<label class="ob-card" style="--sc:${stColor(k)}"><input type="checkbox" value="${k}"${d.styles.includes(k)?" checked":""}><span class="ob-rot"><canvas data-kit="${k}" width="160" height="280"></canvas></span><span class="ob-text"><span class="ob-name">${esc(STYLES[k].name)}</span><span class="ob-blurb">${esc(STYLES[k].blurb)}</span></span></label>`).join("")}</div>`}
+    `<div class="ob-grid">${STYLE_KEYS.map(k=>`<label class="ob-card" style="--sc:${stColor(k)}"><input type="checkbox" value="${k}"${d.styles.includes(k)?" checked":""}><span class="ob-sw">${window.ROT&&ROT.PALETTES[k]?ROT.PALETTES[k].map(c=>`<i style="background:rgb(${c.join(",")})"></i>`).join(""):""}</span><span class="ob-text"><span class="ob-name">${esc(STYLES[k].name)}</span><span class="ob-blurb">${esc(STYLES[k].blurb)}</span></span></label>`).join("")}</div>`}
   else if(OB.step===2){html=head("Budget and sizes","What do you usually spend?","Brands above your budget stay hidden unless you ask for them.")+
     `<div class="chips ob-radio">${[[1,"Mostly budget ($)"],[2,"Up to mid-range ($$)"],[3,"Anything, including $$$ and resale"]].map(([v,l])=>`<label class="chip"><input type="radio" name="ob-budget" value="${v}"${d.budget===v?" checked":""}>${l}</label>`).join("")}</div>
      <p class="label" style="margin-top:6px">Your sizes (optional)</p>
@@ -627,7 +629,7 @@ function renderOnboard(){const d=OB.d,box=$("ob-body"),N=4;
     `<div class="chips">${opts.map(p=>`<label class="chip"><input type="checkbox" value="${p.key}"${d.focus.includes(p.key)?" checked":""}>${esc(p.short)}</label>`).join("")}</div>`}
   html+=`<p class="status" id="ob-msg" aria-live="polite"></p><div class="su-actions">${OB.step>0?`<button class="btn ghost" id="ob-back">Back</button>`:OB.edit?`<button class="btn ghost" id="ob-cancel">Cancel</button>`:""}<button class="btn" id="ob-next">${OB.step<N-1?"Next":"Finish"}</button></div>`;
   box.innerHTML=html;box.scrollTop=0;$("onboard").scrollTop=0;
-  if(window.ROT)box.querySelectorAll("canvas[data-kit]").forEach(cv=>{ROT.render(cv,ROT.kit(cv.dataset.kit),{scale:1,seed:3,glitch:false});const pp=ROT.PALETTES[cv.dataset.kit];if(pp)cv.parentElement.style.background=`rgb(${pp[1].join(",")})`});
+
   const read=()=>{if(OB.step===0){d.name=$("ob-name").value.trim();d.shop=box.querySelector('input[name="ob-shop"]:checked')?.value||""}
     else if(OB.step===1)d.styles=[...box.querySelectorAll(".ob-card input:checked")].map(i=>i.value);
     else if(OB.step===2){d.budget=+(box.querySelector('input[name="ob-budget"]:checked')?.value||2);d.sizes={tops:$("ob-tops").value.trim(),bottoms:$("ob-bottoms").value.trim(),shoes:$("ob-shoes").value.trim()}}
@@ -668,14 +670,14 @@ function mainStyle(){const keys=userStyles();const c={};S.items.forEach(i=>(i.vi
   return keys.slice().sort((a,b)=>(c[b]||0)-(c[a]||0))[0]||keys[0]||"streetwear"}
 // Heading font per style (Google Fonts, loaded only for the style in use)
 const HEAD_FONTS={
-  streetwear:{n:"Condensed caps",f:"Archivo",w:800,c:"uppercase",st:"62%",t:".005em",sc:1.15},
+  streetwear:{n:"Condensed caps",f:"Archivo",w:650,c:"uppercase",st:"75%",t:".03em",sc:1},
   grisch:{n:"Editorial serif",f:"Instrument Serif",q:"Instrument+Serif",w:400,t:"-.01em",sc:1.25},
   cozy:{n:"Soft serif",f:"Fraunces",q:"Fraunces:opsz,wght,SOFT@9..144,600,100",w:600,t:"-.02em",v:'"SOFT" 100',sc:1.05},
-  workwear:{n:"Industrial caps",f:"Big Shoulders Display",q:"Big+Shoulders+Display:wght@800",w:800,c:"uppercase",t:".01em",sc:1.2},
+  workwear:{n:"Industrial caps",f:"Big Shoulders Display",q:"Big+Shoulders+Display:wght@700",w:700,c:"uppercase",t:".03em",sc:1.1},
   minimal:{n:"Clean sans",f:"Inter Tight",q:"Inter+Tight:wght@600",w:600,t:"-.035em",sc:1},
   gorpcore:{n:"Technical grotesk",f:"Space Grotesk",q:"Space+Grotesk:wght@700",w:700,t:"-.03em",sc:1},
   western:{n:"Slab caps",f:"Alfa Slab One",q:"Alfa+Slab+One",w:400,c:"uppercase",t:".01em",sc:.92},
-  athleisure:{n:"Sport italic",f:"Barlow Condensed",q:"Barlow+Condensed:ital,wght@1,800",w:800,c:"uppercase",s:"italic",t:".01em",sc:1.2},
+  athleisure:{n:"Sport italic",f:"Barlow Condensed",q:"Barlow+Condensed:ital,wght@1,700",w:700,c:"uppercase",s:"italic",t:".03em",sc:1.1},
   y2k:{n:"Wide rounded",f:"Unbounded",q:"Unbounded:wght@700",w:700,t:"-.02em",sc:.82},
   feminine:{n:"Romantic italic",f:"Playfair Display",q:"Playfair+Display:ital,wght@1,600",w:600,s:"italic",t:"-.01em",sc:1.1},
   tailored:{n:"Fashion serif",f:"Bodoni Moda",q:"Bodoni+Moda:opsz,wght@6..96,600",w:600,t:"-.01em",sc:1.1},
@@ -687,11 +689,18 @@ function applyHeadFont(){const pick=S.prefs?.font,key=HEAD_FONTS[pick]?pick:main
   r.setProperty("--hstretch",H.st||"100%");r.setProperty("--htrack",H.t||"0");r.setProperty("--hstyle",H.s||"normal");r.setProperty("--hscale",H.sc||1);r.setProperty("--hvar",H.v||"normal")}
 function applyTheme(){if(!window.ROT)return;applyHeadFont();const pal=ROT.PALETTES[mainStyle()]||ROT.PALETTES.streetwear;const r=document.documentElement.style;
   r.setProperty("--p-ink",pal[0].join(" "));r.setProperty("--p-paper",pal[1].join(" "));r.setProperty("--p-acc",pal[2].join(" "));
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m,i)=>m.content=i===0?`rgb(${pal[1].join(",")})`:`rgb(${pal[0].join(",")})`)}
+}
 let rotOutfit=null,rotT=null;
 function renderRot(){clearTimeout(rotT);rotT=setTimeout(()=>{if(!window.ROT)return;
   rotOutfit=dailyOutfit();
-  ROT.render($("rot-cv"),rotOutfit,{scale:1,seed:7,glitch:true,body:rotBody()});if(S.tab==="you")drawYou();applyTheme();sayNow()},60)}
+  $("rot-av").innerHTML=rotMark();if(S.tab==="you")drawYou();applyTheme();sayNow()},60)}
+/* Chibi ROT in the outfit's real colors */
+function chibiColors(o){const pool=o.today?fitItems(o.today.ids):S.items,c={};
+  for(const [k] of o.layers||[]){const it=pool.find(i=>ROT.matchPiece(i)===k);if(it){const h=colorOf(it);if(h!=="#8a8a8a")c[ROT.SLOT[k]]=h}}return c}
+function chibiSVG(o,view){return ROT.chibi(o,{colors:chibiColors(o),view})}
+/* ROT's mark for the UI: a dark disc with two lit eyes. Quiet enough to sit in a header. */
+function rotMark(){const pal=ROT.PALETTES[mainStyle()]||ROT.PALETTES.streetwear,a=`rgb(${pal[2].join(",")})`;
+  return `<svg class="rot-mark" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" style="fill:var(--mark-bg)"/><g class="ch-eyes" fill="${a}"><rect x="12.5" y="17" width="4" height="6.5" rx="2"/><rect x="23.5" y="17" width="4" height="6.5" rx="2"/></g></svg>`}
 function rotLine(t){const n=S.items.length,st=styleName(mainStyle()).toLowerCase();
   const worn=(rotOutfit?.detail||[]).find(d=>d.owned&&["outer","mid","top"].includes(ROT.SLOT[d.k]));
   const wornItem=worn&&S.items.find(i=>{const p=PIECE[worn.k];return p&&i.cat===p.cat&&p.re.test(((i.name||"")+" "+(i.notes||"")).toLowerCase())});
@@ -853,7 +862,7 @@ const CHAT={msgs:[],busy:false};
 try{CHAT.msgs=JSON.parse(localStorage.getItem("rot-chat")||"[]")}catch{}
 function saveChat(){CHAT.msgs=CHAT.msgs.slice(-40);try{localStorage.setItem("rot-chat",JSON.stringify(CHAT.msgs))}catch{}}
 function openChat(){$("rotchat").hidden=false;document.body.classList.add("locked");
-  if(window.ROT&&rotOutfit)ROT.render($("chat-rot"),rotOutfit,{scale:1,seed:7,glitch:true});
+  if(window.ROT)$("chat-av").innerHTML=rotMark();
   $("chat-mode").textContent=sample?"gemini mode":"built-in mode";
   if(!CHAT.msgs.length)CHAT.msgs.push({who:"rot",text:`${S.prefs?.name?S.prefs.name.toLowerCase()+". ":""}i'm rot. i know your closet, your pins and the weather. ask me what to wear, what to buy, or whether something works.`});
   renderChat();loadWeather();setTimeout(()=>$("chat-in").focus(),50)}
@@ -936,8 +945,7 @@ function rotBuiltIn(text){const t=text.toLowerCase();const pool=S.items.filter(i
   const b=findBrand(text.replace(/^(what about|tell me about|is|are|how is|how's)\s+/i,"").replace(/[?!.]+$/,""));
   if(b)return {text:`${b.b.toLowerCase()}${b.cc?` (${(countryOf(b)||b.cc).toLowerCase()})`:""}. ${(b.n||"").toLowerCase()} ${TIER[b.t]||""}`.trim(),brands:[b.b]};
   return {text:"in built-in mode i can do: what to wear today, what to buy next, your sizes, the weather, and brand lookups. add a free gemini key in You → settings and i can actually talk."}}
-$("rot-cv").parentElement.addEventListener("click",openChat);
-$("rot-say").addEventListener("click",openChat);
+$("rot-av").addEventListener("click",openChat);
 $("chat-close").onclick=closeChat;
 $("rotchat").addEventListener("click",e=>{if(e.target.id==="rotchat")closeChat()});
 $("chat-clear").onclick=()=>{CHAT.msgs=[];saveChat();openChat()};

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Rotation</title>
 <meta name="description" content="Your closet: daily fits, next buys and a brand atlas built around your style.">
-<meta name="theme-color" content="#EDEFF3" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#101218" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1012" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png?v=2">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Rotation">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 :root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
@@ -216,11 +216,6 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .wx-line{margin:0;font:500 .9rem/1.4 var(--mono)}
 .wx-line b{font-weight:700}
 .wx-pick{display:flex;flex-wrap:wrap;gap:6px}
-.rot-face{cursor:pointer}
-.rot-say{cursor:pointer}
-.rot-say .talk{display:block;margin-top:4px;font-size:.75rem;color:var(--muted);text-decoration:underline}
-.rot-face.mini{width:56px;height:62px}
-.rot-face.mini canvas{left:-52px;top:-6px;width:160px;height:280px;transform:scale(.5);transform-origin:52px 6px}
 #rotchat{z-index:20;padding:calc(10px + env(safe-area-inset-top,0px)) 10px calc(10px + env(safe-area-inset-bottom,0px));align-items:stretch}
 .chat-panel{display:flex;flex-direction:column;gap:10px;height:100%;max-height:100%;padding:12px}
 .chat-log{flex:1;min-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px}
@@ -418,26 +413,27 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-16">
+<link rel="stylesheet" href="theme.css?v=20261001-19">
 </head>
 <body>
 
 <div class="wrap">
   <header class="mast">
-    <div class="rot-face" title="Talk to ROT"><canvas id="rot-cv" width="160" height="280"></canvas></div>
-    <div class="mast-main">
-      <div class="mast-top"><h1>Rotation</h1><span class="sync-pill" id="sync-pill" data-state="local">Starting…</span></div>
+    <div class="mast-id">
+      <h1 class="wordmark">Rotation</h1>
       <p id="mast-eyebrow">Your closet</p>
-      <p class="rot-say" id="rot-say" aria-live="polite">booting up.</p>
     </div>
+    <span class="sync-pill" id="sync-pill" data-state="local">Starting…</span>
+    <button type="button" class="rot-av" id="rot-av" aria-label="Talk to ROT" title="Talk to ROT"></button>
+    <p class="rot-say" id="rot-say" aria-live="polite" hidden></p>
     <nav class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tab-make" data-tab="make">Make a fit</button>
+      <button class="tab" role="tab" id="tab-make" data-tab="make">Today</button>
       <button class="tab" role="tab" id="tab-closet" data-tab="closet">Closet<span class="n" id="n-closet">0</span></button>
-      <button class="tab" role="tab" id="tab-buys" data-tab="buys">Next buys<span class="n" id="n-buys">0</span></button>
-      <button class="tab" role="tab" id="tab-brands" data-tab="brands">Brands<span class="n" id="n-brands"></span></button>
+      <button class="tab" role="tab" id="tab-buys" data-tab="buys" data-also="brands">Shop<span class="n" id="n-buys">0</span></button>
+      <button class="tab sub" role="tab" id="tab-brands" data-tab="brands">Brands<span class="n" id="n-brands"></span></button>
       <button class="tab" role="tab" id="tab-inspo" data-tab="inspo">Inspo<span class="n" id="n-inspo">0</span></button>
-      <button class="tab" role="tab" id="tab-you" data-tab="you">You &amp; settings</button>
-      <button class="tab" role="tab" id="tab-saved" data-tab="saved">Saved &amp; worn<span class="n" id="n-saved">0</span></button>
+      <button class="tab" role="tab" id="tab-you" data-tab="you" data-also="saved">You</button>
+      <button class="tab sub" role="tab" id="tab-saved" data-tab="saved">Saved<span class="n" id="n-saved">0</span></button>
     </nav>
   </header>
 
@@ -445,14 +441,14 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 
   <!-- MAKE -->
   <section id="view-make" hidden>
-    <div class="panel">
-      <h2>Today</h2>
+    <div class="panel today">
       <div class="wx" id="wx">
         <p class="wx-line" id="wx-line">Set your location to fill in today's weather automatically.</p>
         <div class="row tight" style="gap:6px"><button class="btn ghost small" id="wx-here">Use my location</button><button class="btn ghost small" id="wx-city">Pick a city</button><button class="btn ghost small" id="wx-refresh" hidden>Refresh</button></div>
         <form class="row tight" id="wx-form" hidden><div class="field"><label class="label" for="wx-q">City</label><input type="text" id="wx-q" placeholder="Chicago" autocomplete="off"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><button class="btn small" type="submit">Find</button></div></form>
         <div class="wx-pick" id="wx-pick"></div>
       </div>
+      <details class="adjust"><summary>Adjust weather, style or plans</summary>
       <div class="row">
         <div class="field"><label class="label" for="m-temp">Temp (°F)</label><input type="number" id="m-temp" value="62" inputmode="numeric"></div>
         <div class="field"><label class="label" for="m-wx">Conditions</label>
@@ -461,9 +457,10 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
           <select id="m-vibe"><option value="any">Surprise me</option><option value="grisch">Grisch</option><option value="streetwear">Streetwear</option><option value="cozy">Cozy</option></select></div>
       </div>
       <div class="field"><label class="label" for="m-plan">What's the day? (optional)</label><input type="text" id="m-plan" placeholder="Class, then shooting a show at night"></div>
+      </details>
       <div class="recreate" id="m-recreate" hidden>
         <img id="m-recreate-img" alt="Inspo to recreate">
-        <div style="flex:1;min-width:0"><p class="label">Recreating this inspo</p><p class="muted" style="font-size:.9rem">Closest match from your closet, plus what's missing.</p></div>
+        <div style="flex:1;min-width:0"><p class="label">Recreating this inspo</p></div>
         <button class="btn ghost small" id="m-recreate-x">Clear</button>
       </div>
       <div class="row"><button class="btn" id="m-go">Make 3 fits</button><button class="btn ghost" id="m-stop" hidden>Stop</button></div>
@@ -471,7 +468,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
     </div>
     <div class="fits" id="m-out"></div>
     <details class="panel trip" id="trip" style="margin-top:16px">
-      <summary><h2>Pack for a trip</h2><span class="muted">Pick where and when. Rotation checks the forecast and packs one outfit per day from your closet.</span></summary>
+      <summary><h2>Pack for a trip</h2></summary>
       <form id="trip-form" autocomplete="off">
         <div class="row tight">
           <div class="field"><label class="label" for="trip-city">Where</label><input type="text" id="trip-city" placeholder="Tokyo"></div>
@@ -488,34 +485,33 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 
   <!-- CLOSET -->
   <section id="view-closet" hidden>
-    <div class="row" style="justify-content:space-between;align-items:center">
-      <div class="row" style="gap:8px;align-items:center"><div class="filters" id="c-filters"></div><select id="c-sort" aria-label="Sort closet" class="c-sort"><option value="new">Newest</option><option value="most">Most worn</option><option value="least">Least worn</option><option value="idle">Sitting longest</option><option value="cpw">Cost per wear</option></select><button type="button" class="color-toggle" id="c-color" aria-pressed="false">Show colors</button></div>
-      <div class="row" style="gap:6px"><label class="btn ghost" style="position:relative">Add many<input type="file" id="c-bulk" accept="image/*" multiple style="position:absolute;inset:0;opacity:0" aria-label="Add many pieces from photos"></label><button class="btn" id="c-add">Add a piece</button></div>
-    </div>
+    <div class="c-bar"><div class="filters" id="c-filters"></div></div>
+    <div class="c-bar2"><select id="c-sort" aria-label="Sort closet" class="c-sort"><option value="new">Newest</option><option value="most">Most worn</option><option value="least">Least worn</option><option value="idle">Sitting longest</option><option value="cpw">Cost per wear</option></select><button type="button" class="color-toggle" id="c-color" aria-pressed="false">Show colors</button><span style="flex:1"></span><label class="btn ghost small" style="position:relative">Add many<input type="file" id="c-bulk" accept="image/*" multiple style="position:absolute;inset:0;opacity:0" aria-label="Add many pieces from photos"></label><button class="btn small" id="c-add">Add a piece</button></div>
     <div class="rot-report" id="c-report"></div>
     <div id="c-body" style="margin-top:16px"></div>
   </section>
 
   <!-- BRANDS -->
   <section id="view-brands" hidden>
+    <div class="seg" role="group"><button type="button" data-go="buys">Next buys</button><button type="button" data-go="brands" aria-pressed="true">Brands</button></div>
     <div class="panel">
-      <div class="row" style="justify-content:space-between;align-items:center"><h2>Your brands</h2><button class="btn ghost small" id="b-add">Add a brand</button></div>
-      <p class="muted">Built from your styles, budget and the clothes you shop for. Tap Own or Want and Next buys takes it into account; Hide anything that isn't you. Brands your list recommends are outlined.</p>
-      <div class="b-ai"><button class="btn small" id="b-ai-go" hidden>Personalize with Gemini</button><p class="muted" id="b-ai-hint" style="font-size:.85rem">Add a free Gemini key in You &amp; settings and Gemini can pick more brands just for you, beyond this list.</p><p class="status" id="b-ai-status" aria-live="polite"></p></div>
+      
+      <div class="b-ai"><button class="btn small" id="b-ai-go" hidden>Personalize with Gemini</button><p class="muted" id="b-ai-hint" hidden></p><p class="status" id="b-ai-status" aria-live="polite"></p></div>
       <div class="mix" id="b-mix"></div>
       <div class="b-controls" role="search">
+        <div class="b-row"><input type="text" id="b-q" class="b-search" placeholder="Search brands" aria-label="Search brands"><span class="b-count" id="b-count"></span><button class="btn ghost small" id="b-add">Add</button></div>
         <div class="b-styles" id="b-styles"></div>
+        <details class="adjust"><summary>Filters</summary>
         <div class="b-row"><span class="label">Shopping for</span><div class="b-row" id="b-cats"></div></div>
         <div class="b-row"><span class="label">Budget</span><div class="b-row" id="b-tiers"></div></div>
         <div class="b-row"><span class="label">Brand type</span><div class="b-row" id="b-tags"></div></div>
         <div class="b-row"><span class="label">Based in</span><div class="b-row" id="b-regions"></div></div>
-        <div class="b-row"><input type="text" id="b-q" class="b-search" placeholder="Search a brand, item or country" aria-label="Search brands"><span class="b-count" id="b-count"></span></div>
+        </details>
       </div>
     </div>
     <div id="b-list"></div>
-    <div class="b-sec" style="--sc:var(--ink)"><div class="b-head"><h2>Starter kits &amp; fit</h2><p>Buy these first. A handful of pieces per style covers most outfits.</p></div>
+    <div class="b-sec" style="--sc:var(--ink)"><div class="b-head"><h2>Starter kits</h2></div>
       <div class="b-kits" id="b-kits"></div></div>
-    <p class="muted" style="font-size:.85rem;margin-top:16px">Price tiers are approximate and shift with sales and seasons. For luxury pieces, buy only through authenticated resale.</p>
   </section>
 
   <!-- INSPO -->
@@ -529,15 +525,16 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         </div>
       </div>
       <p class="status" id="i-status" aria-live="polite"></p>
-      <div id="i-profile"></div>
+      <div id="i-profile"></div><button type="button" class="linkish" id="i-more" style="align-self:flex-start">Read full profile</button>
     </div>
     <div class="inspo-grid" id="i-grid" style="margin-top:16px"></div>
   </section>
 
   <!-- NEXT BUYS -->
   <section id="view-buys" hidden>
+    <div class="seg" role="group"><button type="button" data-go="buys" aria-pressed="true">Next buys</button><button type="button" data-go="brands">Brands</button></div>
     <div class="panel">
-      <div class="row" style="justify-content:space-between;align-items:center"><h2>Next buys</h2><button class="btn" id="g-go">Find my next buys</button></div>
+      <div class="row" style="justify-content:flex-end;align-items:center"><button class="btn" id="g-go">Find my next buys</button></div>
       <p class="muted" id="g-mode"></p>
       <div class="fresh" id="g-fresh" hidden><span id="g-fresh-t"></span><button class="btn small" id="g-fresh-go">Update now</button></div>
       <p class="status" id="g-status" aria-live="polite"></p>
@@ -553,11 +550,11 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 
   <!-- YOU -->
   <section id="view-you" hidden>
+    <div class="seg" role="group"><button type="button" data-go="you" aria-pressed="true">Profile</button><button type="button" data-go="saved">Saved &amp; worn</button></div>
     <div class="panel" id="stylepanel" style="margin-bottom:16px"></div>
     <div class="you-grid">
       <div class="panel">
         <h2>Your build</h2>
-        <p class="muted">The fit maker uses this to judge how much volume and layering suits your frame. It stays private in this app.</p>
         <div class="row tight">
           <div class="field"><label class="label" for="b-ft">Height (ft)</label><input type="number" id="b-ft" min="4" max="7" inputmode="numeric"></div>
           <div class="field"><label class="label" for="b-in">(in)</label><input type="number" id="b-in" min="0" max="11" inputmode="numeric"></div>
@@ -577,12 +574,10 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <div class="rot-stage"><canvas id="you-rot" width="320" height="560" aria-label="ROT wearing your closet"></canvas></div>
         <p class="rot-inline" id="you-rot-note"></p>
         <button class="btn" id="you-stand" style="align-self:flex-start">Put ROT in a fit pic</button>
-        <p class="muted" style="font-size:.9rem">ROT wears your main style's pieces from your closet, then swaps in what keeps showing up in your pins. Its build follows your height and build as you change them.</p>
       </div>
     </div>
-    <div class="panel" style="margin-top:16px">
-      <h2>On-body photo setup</h2>
-      <p class="muted">Take every on-body shot the same way so pieces line up side by side on your outfit boards.</p>
+    <details class="panel fold" style="margin-top:16px">
+      <summary><h2>On-body photo setup</h2></summary>
       <ol class="steps">
         <li>Pick one spot with a plain wall and mark where you stand with tape.</li>
         <li>Put your phone at waist height, about 7 ft away, in the same place every time. Use the 10-second timer.</li>
@@ -590,10 +585,9 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <li>Face the camera, arms slightly away from your sides, same daylight each time.</li>
         <li>Wear plain black or neutral pieces for everything you're not photographing.</li>
       </ol>
-    </div>
-    <div class="panel" id="sizepanel" style="margin-top:16px">
-      <h2>Measurements &amp; sizes</h2>
-      <p class="muted">Add a few measurements and Rotation works out your size in US, UK, EU, Japanese and Korean sizing, then shows it on your next buys. Everything is optional.</p>
+    </details>
+    <details class="panel fold" id="sizepanel" style="margin-top:16px">
+      <summary><h2>Sizes</h2></summary>
       <div class="row tight">
         <div class="field"><label class="label" for="z-cut">Size me in</label><select id="z-cut"><option value="mens">Men's</option><option value="womens">Women's</option></select></div>
         <div class="field"><label class="label" for="z-unit">Units</label><select id="z-unit"><option value="in">Inches</option><option value="cm">Centimeters</option></select></div>
@@ -618,7 +612,6 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
       <div class="row" style="align-items:center"><button class="btn" id="z-save">Save sizes</button><span class="status" id="z-state"></span></div>
       <div id="z-card"></div>
       <h3 style="margin-top:8px">Sizes that fit you</h3>
-      <p class="muted" style="font-size:.9rem">Add a few things you own and how they fit. Rotation trusts these over any chart when you shop that brand again.</p>
       <form class="row tight" id="zr-form">
         <div class="field"><label class="label" for="zr-brand">Brand</label><input type="text" id="zr-brand" placeholder="Levi's" autocomplete="off"></div>
         <div class="field"><label class="label" for="zr-kind">Piece</label><select id="zr-kind"><option value="tops">Tops</option><option value="bottoms">Bottoms</option><option value="shoes">Shoes</option></select></div>
@@ -627,13 +620,14 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <div class="field" style="flex:0 0 auto;justify-content:flex-end"><button class="btn ghost" type="submit">Add</button></div>
       </form>
       <ul class="zr-list" id="zr-list"></ul>
-    </div>
+    </details>
         <div class="panel" id="settings" style="margin-top:16px"></div>
-    <div class="panel" style="margin-top:16px"><h2>Feedback</h2><p class="muted">Found a bug or want something added? Send it straight to the app's owner.</p><button class="btn ghost" id="fb-open" style="align-self:flex-start">Send feedback</button></div>
+    <p style="margin-top:16px;text-align:center"><button class="linkish" id="fb-open">Send feedback</button></p>
   </section>
 
   <!-- SAVED -->
   <section id="view-saved" hidden>
+    <div class="seg" role="group"><button type="button" data-go="you">Profile</button><button type="button" data-go="saved" aria-pressed="true">Saved &amp; worn</button></div>
     <div class="panel cal" id="cal" style="margin-bottom:16px">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><h2 id="cal-title">Worn</h2><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn ghost small" id="cal-prev" aria-label="Previous month">‹</button><button class="btn ghost small" id="cal-next" aria-label="Next month">›</button></div></div>
       <div class="cal-grid" id="cal-grid"></div>
@@ -649,8 +643,8 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
   <form class="panel" id="f" autocomplete="off">
     <div class="row" style="justify-content:space-between;align-items:center"><h2 id="f-title">Add a piece</h2><button type="button" class="btn ghost small" id="f-close">Close</button></div>
     <div class="photos">
-      <label class="drop" id="d-flat"><span class="label">Flat-lay / hanger</span><span class="muted" style="font-size:.85rem">Plain background, even light</span><img id="p-flat" alt="" hidden><input type="file" id="f-flat" accept="image/*"></label>
-      <label class="drop" id="d-body"><span class="label">On you (optional)</span><span class="muted" style="font-size:.85rem">Same spot and distance every time (see You tab)</span><img id="p-body" alt="" hidden><input type="file" id="f-body" accept="image/*"></label>
+      <label class="drop" id="d-flat"><span class="label">Flat-lay / hanger</span><img id="p-flat" alt="" hidden><input type="file" id="f-flat" accept="image/*"></label>
+      <label class="drop" id="d-body"><span class="label">On you (optional)</span><img id="p-body" alt="" hidden><input type="file" id="f-body" accept="image/*"></label>
     </div>
     <div class="row"><button type="button" class="btn ghost" id="f-auto">Identify &amp; tag</button><span class="status" id="f-status" aria-live="polite"></span></div>
     <div class="field"><label class="label" for="f-name">Name</label><input type="text" id="f-name" placeholder="Brown double-knee work pants" required></div>
@@ -687,7 +681,6 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <p class="rot-inline" id="mq-say"></p>
         <label class="chip" id="mq-jacket-wrap" style="align-self:flex-start"><input type="checkbox" id="mq-jacket" checked>Jacket on</label>
         <ul class="mq-legend" id="mq-legend"></ul>
-        <p class="muted" style="font-size:.85rem">Shapes and shades come from each piece's type and color. Pieces ROT has no drawing for yet are listed but not worn.</p>
         <p class="muted" style="font-size:.85rem" id="mq-body-note">Set your height and build in the You tab so ROT's build matches yours.</p>
       </div>
     </div>
@@ -708,7 +701,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 <div class="sheet" id="rotchat" hidden>
   <div class="panel chat-panel" role="dialog" aria-labelledby="chat-title">
     <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap">
-      <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap"><div class="rot-face mini" aria-hidden="true"><canvas id="chat-rot" width="160" height="280"></canvas></div><div><h2 id="chat-title">Talk to ROT</h2><p class="label" id="chat-mode"></p></div></div>
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap"><div class="rot-av chat-av" id="chat-av" aria-hidden="true"></div><div><h2 id="chat-title">ROT</h2><p class="label" id="chat-mode"></p></div></div>
       <div class="row" style="gap:6px;flex-wrap:nowrap"><button type="button" class="btn ghost small" id="chat-clear">Clear</button><button type="button" class="btn ghost small" id="chat-close">Close</button></div>
     </div>
     <div class="chat-log" id="chat-log" aria-live="polite"></div>
@@ -798,12 +791,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-16"></script>
-<script src="supabase.js?v=20261001-16"></script>
-<script src="platform.js?v=20261001-16"></script>
-<script src="catalog.js?v=20261001-16"></script>
-<script src="size.js?v=20261001-16"></script>
-<script src="rot.js?v=20261001-16"></script>
-<script src="app.js?v=20261001-16"></script>
+<script src="config.js?v=20261001-19"></script>
+<script src="supabase.js?v=20261001-19"></script>
+<script src="platform.js?v=20261001-19"></script>
+<script src="catalog.js?v=20261001-19"></script>
+<script src="size.js?v=20261001-19"></script>
+<script src="rot.js?v=20261001-19"></script>
+<script src="app.js?v=20261001-19"></script>
 </body>
 </html>

@@ -481,5 +481,94 @@
     return canvas;
   }
 
-  window.ROT = { W, H, POSES, PALETTES, KITS, EXTRAS, LAYER, SLOT, toneOf, matchPiece, outfitFor, outfitFromItems, variant, render, kit: (style) => ({ style, layers: KITS[style] || KITS.streetwear }) };
+  /* Chibi ROT: a flat SVG for the UI (avatar, chat, quiz). Big round void head, glowing eyes, the day's clothes as simple shapes.
+     colors: optional {slot: css color} from the real pieces; otherwise each layer's grey tone is used. */
+  const CH_DEF = { top: "#e9e9e6", mid: "#3a3d44", outer: "#8f8a80", bottom: "#56657e", shoes: "#efefec", hat: "#2a2c31", hair: "#1d1e22", bag: "#2a2c31", neck: "#c8c3b8", socks: "#e9e9e6", belt: "#3b2a20", face: "#0b0b0d", wrist: "#c9a24a" };
+  function chibi(outfit, { colors = {}, accent = null, skin = "var(--chibi-skin,#17191e)", view = "0 0 120 140" } = {}) {
+    const L = {}; for (const [k, v] of outfit.layers || []) L[SLOT[k]] = { k, v };
+    const pal = PALETTES[outfit.style] || PALETTES.streetwear, acc = accent || `rgb(${pal[2].join(",")})`;
+    const col = (s) => colors[s] || (L[s] && L[s].v != null ? `rgb(${L[s].v},${L[s].v},${L[s].v})` : CH_DEF[s]);
+    const has = (s) => !!L[s], k = (s) => L[s]?.k;
+    const o = []; const P = (d, f, x = "") => o.push(`<path d="${d}" style="fill:${f}"${x}/>`);
+    const R = (x, y, w, h, r, f, x2 = "") => o.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" style="fill:${f}"${x2}/>`);
+    const C = (x, y, r, f, x2 = "") => o.push(`<circle cx="${x}" cy="${y}" r="${r}" style="fill:${f}"${x2}/>`);
+    const line = (d, c, w = 1.4) => o.push(`<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    const shade = "rgba(0,0,0,.14)", hi = "rgba(255,255,255,.22)";
+    const outerK = k("outer"), midK = k("mid"), topK = k("top") || "tee", botK = k("bottom") || "straightjeans", shoeK = k("shoes") || "whitesneakers";
+    const dress = topK === "dress";
+    const long = outerK === "trench";
+    // what covers the torso, and the sleeves
+    const torsoC = outerK && outerK !== "vest" ? col("outer") : midK ? col("mid") : col("top");
+    const sleeveC = outerK && outerK !== "vest" ? col("outer") : midK ? col("mid") : col("top");
+    const shortSleeve = !outerK && !midK && /tee|babytee|graphictee|polo|dress/.test(topK) || (outerK === "vest" && !midK && /tee|polo/.test(topK));
+    o.push(`<ellipse cx="60" cy="133" rx="27" ry="4" fill="currentColor" opacity=".12"/>`);
+    // long hair and hood sit behind everything
+    if (k("hair") === "longhair" && !has("hat")) P("M33 44 Q31 86 42 92 L78 92 Q89 86 87 44 Z", col("hair"));
+    if (midK === "hoodie" && !has("hat")) C(60, 45, 31.5, col("mid"));
+    // legs
+    const shorts = botK === "jorts", skirt = /skirt/.test(botK);
+    const legW = /baggy|cargo|sweat|workpants/.test(botK) ? 13 : botK === "leggings" ? 10 : 12;
+    const lx = 59 - legW, rx = 61;
+    if (dress || skirt || shorts) { R(48, 96, 8, 30, 4, skin); R(64, 96, 8, 30, 4, skin) }
+    else if (botK === "bootcut") { P(`M${lx} 92 H58 V126 H${lx - 3} Z`, col("bottom")); P(`M62 92 H${rx + legW} L${rx + legW + 3} 126 H62 Z`, col("bottom")) }
+    else { R(lx, 90, legW, 36, 3, col("bottom")); R(rx, 90, legW, 36, 3, col("bottom")) }
+    if (!dress && !skirt && !shorts) line("M60 94 V124", shade, 1);
+    if (shorts) { R(45, 90, 14, 16, 3, col("bottom")); R(61, 90, 14, 16, 3, col("bottom")) }
+    if (skirt) P(botK === "midiskirt" ? "M44 90 H76 L82 118 H38 Z" : "M44 90 H76 L80 106 H40 Z", col("bottom"));
+    if (has("socks") && (shorts || skirt || dress)) { R(47, 114, 10, 6, 2, col("socks")); R(63, 114, 10, 6, 2, col("socks")) }
+    // shoes
+    const sc = col("shoes");
+    if (/boot/.test(shoeK)) { const t = shoeK === "kneeboots" ? 100 : 112; R(46, t, 13, 132 - t - 4, 3, sc); R(61, t, 13, 132 - t - 4, 3, sc); R(43, 124, 16, 7, 3.5, sc); R(61, 124, 16, 7, 3.5, sc); if (shoeK === "westernboots") { line(`M49 ${t + 5} L53 ${t + 9} L57 ${t + 5}`, hi); line(`M63 ${t + 5} L67 ${t + 9} L71 ${t + 5}`, hi) } }
+    else if (/heels|balletflats|loafers|dressshoes/.test(shoeK)) { R(44, 124, 15, 6, 3, sc); R(61, 124, 15, 6, 3, sc); if (shoeK === "heels") { R(56, 126, 3, 5, 1, sc); R(61, 126, 3, 5, 1, sc) } }
+    else { R(42, 121, 17, 10, 5, sc); R(61, 121, 17, 10, 5, sc); o.push(`<path d="M42 128 H59 M61 128 H78" stroke="${shade}" stroke-width="2"/>`) }
+    // body
+    if (dress) P("M44 70 H76 L84 112 Q60 117 36 112 Z", col("top"));
+    if (long) P("M40 72 H80 L84 112 H36 Z", col("outer"));
+    // arms (behind the torso edge)
+    const arm = (side) => { const s = side < 0 ? 1 : -1, x = side < 0 ? 33 : 78;
+      if (shortSleeve) { R(x, 72, 9, 22, 4.5, skin); R(x - .5, 71, 10, 10, 4, torsoC === col("top") ? col("top") : sleeveC) }
+      else R(x, 72, 9, 22, 4.5, sleeveC);
+      C(x + 4.5, 95, 4.3, skin); if (s && has("wrist") && side > 0) R(x, 88, 9, 3, 1, col("wrist")) };
+    arm(-1); arm(1);
+    R(40, 68, 40, 28, 10, dress ? col("top") : torsoC);
+    // inner layer showing through an open jacket / cardigan
+    const open = (outerK && outerK !== "vest" && outerK !== "puffer" && outerK !== "shell") || midK === "cardigan";
+    if (open) { const inner = outerK ? (midK && midK !== "cardigan" ? col("mid") : col("top")) : col("top"); P("M54 68 H66 L64 96 H56 Z", inner); if (k("top") === "graphictee" && !(outerK && midK)) R(57, 78, 6, 6, 1.5, acc) }
+    if (outerK === "vest") { P("M40 72 Q40 68 46 68 H54 L56 96 H40 Z", col("outer")); P("M80 72 Q80 68 74 68 H66 L64 96 H80 Z", col("outer")) }
+    if (outerK === "puffer" || outerK === "vest") { line("M42 79 H78", shade, 1.2); line("M42 88 H78", shade, 1.2) }
+    if (outerK === "shell") { line("M60 70 V95", shade, 1.2) }
+    if (outerK === "blazer") { line("M54 68 L58 80 M66 68 L62 80", shade, 1.4) }
+    if (outerK === "workjacket" || outerK === "leather" || outerK === "suede" || outerK === "trench") { P("M47 67 L55 67 L58 74 Z", shade); P("M73 67 L65 67 L62 74 Z", shade) }
+    if (long) { R(40, 91, 40, 3, 1, shade) }
+    if (!outerK && midK === "hoodie") { R(49, 84, 22, 9, 4, shade); line("M56 70 V77 M64 70 V77", "rgba(255,255,255,.55)", 1.2) }
+    if (!outerK && (midK === "quarterzip" || midK === "fleece")) { line(midK === "fleece" ? "M60 70 V95" : "M60 70 V80", shade, 1.3); C(60, midK === "fleece" ? 76 : 80, 1.3, acc) }
+    if (!outerK && !midK && topK === "graphictee") R(54, 76, 12, 10, 2, acc);
+    if (!outerK && !midK && /oxford|flannel|pearlsnap|polo|henley/.test(topK)) { line("M60 70 V94", shade, 1); if (topK === "flannel") { line("M41 80 H79 M41 88 H79", shade, 1.6); line("M50 69 V95 M70 69 V95", shade, 1.6) } }
+    if (has("belt") && !long && !dress) R(41, 92, 38, 3.5, 1, col("belt")), R(58, 91.5, 4, 4.5, 1, "#c9a24a");
+    if (midK === "turtleneck") R(48, 64, 24, 8, 4, col("mid"));
+    // bag
+    if (k("bag") === "crossbody") { line("M45 69 L76 92", col("bag"), 2.2); R(72, 88, 12, 10, 3, col("bag")) }
+    if (k("bag") === "tote") { line("M30 82 Q35 74 40 82", col("bag"), 1.6); R(28, 82, 14, 17, 2, col("bag")) }
+    // neck
+    if (k("neck") === "scarf") { R(44, 64, 32, 8, 4, col("neck")); R(64, 68, 7, 18, 3, col("neck")) }
+    if (k("neck") === "jewelry") { line("M50 70 Q60 80 70 70", "#c9a24a", 1.2); C(60, 77, 1.8, "#c9a24a") }
+    // head
+    o.push(`<circle class="ch-head" cx="60" cy="44" r="27" style="fill:${skin};stroke:var(--chibi-gap,transparent);stroke-width:2.5"/>`);
+    o.push(`<ellipse cx="51" cy="33" rx="9" ry="5" fill="${hi}" opacity=".5" transform="rotate(-24 51 33)"/>`);
+    if (k("neck") === "headphones") { line("M38 66 Q60 78 82 66", "#2a2c31", 3); R(34, 60, 8, 10, 3, "#2a2c31"); R(78, 60, 8, 10, 3, "#2a2c31") }
+    // eyes
+    if (k("face") === "sunglasses") { R(40, 40, 40, 11, 5, "#09090b"); line("M44 43 H50", acc, 1.6) }
+    else o.push(`<g class="ch-eyes" fill="${acc}"><rect x="46" y="42" width="7" height="10" rx="3.5"/><rect x="67" y="42" width="7" height="10" rx="3.5"/></g>`);
+    // hair and hats
+    const hc = col("hat"), hr = col("hair");
+    if (k("hair") === "slick" && !has("hat")) P("M34 40 Q36 15 62 16 Q84 17 87 38 Q76 26 58 27 Q44 28 34 40 Z", hr);
+    if (k("hair") === "longhair" && !has("hat")) P("M33 46 Q32 16 60 16 Q88 16 87 46 Q80 30 66 26 Q52 34 33 46 Z", hr);
+    if (k("hat") === "cap") { P("M33 38 Q34 13 60 13 Q86 13 87 38 Z", hc); P("M70 36 Q90 33 98 39 Q86 42 70 40 Z", hc); line("M60 13 V37", shade, 1) }
+    if (k("hat") === "beanie") { P("M33 36 Q33 10 60 10 Q87 10 87 36 Z", hc); R(31, 30, 58, 10, 5, hc); line("M33 35 H87", shade, 1.2); C(60, 9, 3.4, hc) }
+    if (k("hat") === "cowboyhat") { P("M22 30 Q60 44 98 30 Q94 39 60 41 Q26 39 22 30 Z", hc); P("M41 31 Q40 8 52 9 Q60 13 68 9 Q80 8 79 31 Z", hc); R(41, 25, 38, 4, 1, shade) }
+    if (midK === "hoodie" && !has("hat")) P("M33 47 Q31 60 40 68 L44 66 Q36 58 36 47 Z M87 47 Q89 60 80 68 L76 66 Q84 58 84 47 Z", col("mid"));
+    return `<svg class="chibi" viewBox="${view}" role="img" aria-label="ROT" xmlns="http://www.w3.org/2000/svg">${o.join("")}</svg>`;
+  }
+
+  window.ROT = { W, H, POSES, PALETTES, KITS, EXTRAS, LAYER, SLOT, toneOf, matchPiece, outfitFor, outfitFromItems, variant, render, chibi, kit: (style) => ({ style, layers: KITS[style] || KITS.streetwear }) };
 })();
