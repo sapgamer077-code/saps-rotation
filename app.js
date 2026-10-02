@@ -20,7 +20,7 @@ function tasteText(){const p=S.prefs||{};const f=(p.focus||[]).map(k=>PIECE[k]?.
   return [f.length?`They want more of: ${f.join(", ")}.`:"",`Budget: ${b===1?"mostly budget ($)":b===2?"up to mid-range ($$)":"open to premium ($$$) and resale"}.`,
     (z.tops||z.bottoms||z.shoes)?`Sizes: tops ${z.tops||"not given"}, bottoms ${z.bottoms||"not given"}, shoes ${z.shoes||"not given"}.`:"",typeof sizeText==="function"?sizeText():""].filter(Boolean).join(" ")}
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
-function sampleErr(e){const c=e&&e.code;if(c==="busy")return "Gemini is overloaded right now, even after retrying. Try again in a minute.";return c==="bad_key"||c==="not_granted"?"Google rejected your Gemini key. Check it in You → Settings.":c==="rate_limited"?"Today's free Gemini limit is used up. Try again tomorrow.":c==="bad_model"?"That Gemini model isn't available. Change it in You → Settings.":c==="invalid_json"?"The answer came back garbled. Try again.":c==="network"?"Couldn't reach Gemini. Check your connection.":c==="cancelled"?"Stopped.":"Gemini couldn't answer"+(e&&e.message?": "+e.message:".")}
+function sampleErr(e){const c=e&&e.code;if(c==="rate_limited")return e.daily?"Today's free Gemini limit is used up on every model the app tried. It resets tomorrow.":"Gemini's per-minute limit is hit. Wait a minute and try again.";if(c==="busy")return "Gemini is overloaded right now, even after retrying. Try again in a minute.";return c==="bad_key"||c==="not_granted"?"Google rejected your Gemini key. Check it in You → Settings.":c==="rate_limited"?"Today's free Gemini limit is used up. Try again tomorrow.":c==="bad_model"?"That Gemini model isn't available. Change it in You → Settings.":c==="invalid_json"?"The answer came back garbled. Try again.":c==="network"?"Couldn't reach Gemini. Check your connection.":c==="cancelled"?"Stopped.":"Gemini couldn't answer"+(e&&e.message?": "+e.message:".")}
 
 /* ---------- tabs ---------- */
 function setTab(t){const prev=S.tab;S.tab=t;for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",b.dataset.tab===t);
@@ -78,7 +78,7 @@ for(const k of ["flat","body"])$("f-"+k).onchange=async e=>{const f=e.target.fil
 async function geminiIdentify(flat,body){const imgs=[flat,body].filter(Boolean);
   const desc=flat&&body?`Image 1 is the item laid flat or on a hanger. Image 2 is the item worn by its owner (${bodyText()}).`:flat?"The image is the item laid flat or on a hanger.":`The image shows the item worn by its owner (${bodyText()}).`;
   const prompt=`You identify and tag clothing for a personal wardrobe app. ${desc}
-First identify it like a vintage dealer would: read any visible logo, label, tag, patch, tab, hardware, stitching or signature design detail to work out the brand and the specific model or product line (for example "Levi's 501", "Carhartt WIP Detroit Jacket", "Timberland PRO 6-inch", "Uniqlo U crewneck"). You may search the web to confirm a model name. Only name a brand or model you can actually support from what's visible; otherwise leave it empty and describe the piece.
+First identify it like a vintage dealer would: read any visible logo, label, tag, patch, tab, hardware, stitching or signature design detail to work out the brand and the specific model or product line (for example "Levi's 501", "Carhartt WIP Detroit Jacket", "Timberland PRO 6-inch", "Uniqlo U crewneck"). Only name a brand or model you can actually support from what's visible; otherwise leave it empty and describe the piece.
 Reply with only a JSON object:
 {"brand": brand name or "",
  "model": model or product line or "",
@@ -93,7 +93,7 @@ Reply with only a JSON object:
  "vibes": subset of ${JSON.stringify(userStyles())} (${styleDefs()}),
  "retail": typical new price in USD as a number, or null,
  "fitNotes": ${body?"one or two sentences on how it sits on their body: where hems land, drape, shoulder fit, leg shape, stacking":"\"\""}}`;
-  try{return await sample.json(prompt,{images:imgs.slice(0,imgMax||2),search:true,cache:false})}catch(e){if(e?.code==="bad_key")throw e;return await sample.json(prompt,{images:imgs.slice(0,imgMax||2),cache:false})}}
+  return await sample.json(prompt,{images:imgs.slice(0,imgMax||2),cache:false,onWait:s=>{const el=$("f-status");if(el&&!$("sheet").hidden)el.textContent=`gemini's per-minute limit. waiting ${s}s, then trying again…`}})}
 async function identifyPiece(auto){
   const flat=S.pending.flat||(S.editing?.flat&&await blobFor(S.editing.flat));const body=S.pending.body||(S.editing?.body&&await blobFor(S.editing.body));
   const imgs=[flat,body].filter(Boolean);if(!imgs.length){$("f-status").textContent="Add a photo first.";return}
@@ -390,7 +390,7 @@ function staleText(s){const p=[];if(s.pins)p.push(`${s.pins} new pin${s.pins>1?"
   if(s.marks)p.push(`${s.marks} style, brand or list change${s.marks>1?"s":""}`);return (p.length?p.join(", "):"Closet or inspo edits")+" since this list was built."}
 function renderFresh(){if(!sample){$("g-fresh").hidden=true;return}const s=staleness(),box=$("g-fresh");box.hidden=!s||busyBuys;if(s)$("g-fresh-t").textContent=staleText(s)}
 let busyBuys=false,autoTried="";
-function maybeAutoRefresh(){if(!sample||!db||busyBuys||!S.gaps||!S.loaded)return;const s=staleness();if(!s)return;
+function maybeAutoRefresh(){if(!sample||!db||busyBuys||!S.gaps||!S.loaded)return;const s=staleness();if(!s)return;if(Date.now()-(S.gaps.at||0)<12*36e5)return;// saves Gemini quota: rebuild on its own at most twice a day
   const key=inspoSig()+closetSig()+S.marks.length+S.gapfb.length+(S.prefs?.at||0);if(autoTried===key)return;autoTried=key;refreshBuys(true)}
 async function refreshBuys(auto){if(!sample){renderGaps();return}
   if(S.inspo.length<3&&!S.profile){$("g-status").textContent="Add at least 3 inspo images first.";return}
@@ -641,7 +641,7 @@ function renderOnboard(){const d=OB.d,box=$("ob-body"),N=4;
     if(OB.step<N-1){OB.step++;renderOnboard();return}
     if(!db){$("ob-msg").textContent="Your closet isn't ready yet. Try again in a moment.";return}
     $("ob-next").disabled=true;
-    try{await db.doc("prefs/me").set({...d,focus:d.focus.filter(k=>PIECE[k]),at:Date.now()});closeOnboard();toast(OB.edit?"Style updated":"You're all set")}
+    try{await db.doc("prefs/me").set({...d,font:S.prefs?.font||null,focus:d.focus.filter(k=>PIECE[k]),at:Date.now()});closeOnboard();toast(OB.edit?"Style updated":"You're all set")}
     catch{$("ob-msg").textContent="Couldn't save. Try again.";$("ob-next").disabled=false}}}
 function renderStylePanel(){const box=$("stylepanel");if(!box)return;const p=S.prefs;
   if(!p){box.innerHTML=`<h2>Your style</h2><p class="muted">Take the style quiz so your brand atlas and next buys match you.</p><button class="btn" id="sp-edit" style="align-self:flex-start">Take the style quiz</button>`}
@@ -652,8 +652,10 @@ function renderStylePanel(){const box=$("stylepanel");if(!box)return;const p=S.p
     <div><span class="label">Budget</span><p>${{1:"Mostly budget ($)",2:"Up to mid-range ($$)",3:"Anything, including $$$"}[p.budget]||"Not set"}</p></div>
     <div><span class="label">Sizes</span><p>${[z.tops&&"Tops "+esc(z.tops),z.bottoms&&"Bottoms "+esc(z.bottoms),z.shoes&&"Shoes "+esc(z.shoes)].filter(Boolean).join(" · ")||"Not set"}</p></div>
     <div><span class="label">Want more of</span><p>${(p.focus||[]).map(k=>esc(PIECE[k]?.short||k)).join(", ")||"Nothing picked"}</p></div></div>
+    <div class="field" style="flex:none;max-width:340px"><label class="label" for="sp-font">Heading font</label><select id="sp-font"><option value="">Match my main style (${esc(HEAD_FONTS[mainStyle()]?.n||"")})</option>${Object.entries(HEAD_FONTS).map(([k,h])=>`<option value="${k}"${p.font===k?" selected":""}>${esc(h.n)} · ${esc(styleName(k))}</option>`).join("")}</select></div>
     <button class="btn ghost" id="sp-edit" style="align-self:flex-start">Edit your style</button>`}
-  $("sp-edit").onclick=openOnboard}
+  $("sp-edit").onclick=openOnboard;
+  const fs=$("sp-font");if(fs)fs.onchange=async()=>{S.prefs={...S.prefs,font:fs.value||null};applyHeadFont();if(db)try{const {id,...rest}=S.prefs;await db.doc("prefs/me").set({...rest,at:Date.now()})}catch{toast("Couldn't save that.")}}}
 function renderHeader(){const n=S.prefs?.name;$("mast-eyebrow").textContent=n?`${n}'s closet`:"Closet · fits · next buys · brands"}
 function renderBrandCount(){$("n-brands").textContent=myAtlas().length}
 function applyPrefs(){renderRot();
@@ -664,7 +666,26 @@ function applyPrefs(){renderRot();
 /* ---------- ROT: the face and voice of the app ---------- */
 function mainStyle(){const keys=userStyles();const c={};S.items.forEach(i=>(i.vibes||[]).forEach(v=>{if(keys.includes(v))c[v]=(c[v]||0)+1}));
   return keys.slice().sort((a,b)=>(c[b]||0)-(c[a]||0))[0]||keys[0]||"streetwear"}
-function applyTheme(){if(!window.ROT)return;const pal=ROT.PALETTES[mainStyle()]||ROT.PALETTES.streetwear;const r=document.documentElement.style;
+// Heading font per style (Google Fonts, loaded only for the style in use)
+const HEAD_FONTS={
+  streetwear:{n:"Condensed caps",f:"Archivo",w:800,c:"uppercase",st:"62%",t:".005em",sc:1.15},
+  grisch:{n:"Editorial serif",f:"Instrument Serif",q:"Instrument+Serif",w:400,t:"-.01em",sc:1.25},
+  cozy:{n:"Soft serif",f:"Fraunces",q:"Fraunces:opsz,wght,SOFT@9..144,600,100",w:600,t:"-.02em",v:'"SOFT" 100',sc:1.05},
+  workwear:{n:"Industrial caps",f:"Big Shoulders Display",q:"Big+Shoulders+Display:wght@800",w:800,c:"uppercase",t:".01em",sc:1.2},
+  minimal:{n:"Clean sans",f:"Inter Tight",q:"Inter+Tight:wght@600",w:600,t:"-.035em",sc:1},
+  gorpcore:{n:"Technical grotesk",f:"Space Grotesk",q:"Space+Grotesk:wght@700",w:700,t:"-.03em",sc:1},
+  western:{n:"Slab caps",f:"Alfa Slab One",q:"Alfa+Slab+One",w:400,c:"uppercase",t:".01em",sc:.92},
+  athleisure:{n:"Sport italic",f:"Barlow Condensed",q:"Barlow+Condensed:ital,wght@1,800",w:800,c:"uppercase",s:"italic",t:".01em",sc:1.2},
+  y2k:{n:"Wide rounded",f:"Unbounded",q:"Unbounded:wght@700",w:700,t:"-.02em",sc:.82},
+  feminine:{n:"Romantic italic",f:"Playfair Display",q:"Playfair+Display:ital,wght@1,600",w:600,s:"italic",t:"-.01em",sc:1.1},
+  tailored:{n:"Fashion serif",f:"Bodoni Moda",q:"Bodoni+Moda:opsz,wght@6..96,600",w:600,t:"-.01em",sc:1.1},
+};
+const fontLoaded=new Set();
+function applyHeadFont(){const pick=S.prefs?.font,key=HEAD_FONTS[pick]?pick:mainStyle(),H=HEAD_FONTS[key]||HEAD_FONTS.streetwear;
+  if(H.q&&!fontLoaded.has(H.q)){fontLoaded.add(H.q);const l=document.createElement("link");l.rel="stylesheet";l.href=`https://fonts.googleapis.com/css2?family=${H.q}&display=swap`;document.head.appendChild(l)}
+  const r=document.documentElement.style;r.setProperty("--hf",`"${H.f}","Archivo","Arial Narrow",system-ui,sans-serif`);r.setProperty("--hw",H.w);r.setProperty("--hcase",H.c||"none");
+  r.setProperty("--hstretch",H.st||"100%");r.setProperty("--htrack",H.t||"0");r.setProperty("--hstyle",H.s||"normal");r.setProperty("--hscale",H.sc||1);r.setProperty("--hvar",H.v||"normal")}
+function applyTheme(){if(!window.ROT)return;applyHeadFont();const pal=ROT.PALETTES[mainStyle()]||ROT.PALETTES.streetwear;const r=document.documentElement.style;
   r.setProperty("--p-ink",pal[0].join(" "));r.setProperty("--p-paper",pal[1].join(" "));r.setProperty("--p-acc",pal[2].join(" "));
   document.querySelectorAll('meta[name="theme-color"]').forEach((m,i)=>m.content=i===0?`rgb(${pal[1].join(",")})`:`rgb(${pal[0].join(",")})`)}
 let rotOutfit=null,rotT=null;
@@ -878,7 +899,7 @@ async function sendChat(text){text=(text||"").trim();if(!text||CHAT.busy)return;
   CHAT.msgs.push({who:"me",text});CHAT.busy=true;renderChat();
   let reply;
   try{reply=sample?await rotGemini(text):rotBuiltIn(text)}
-  catch(e){reply={text:e?.code==="rate_limited"?"gemini's out of free questions for today. i'll be back tomorrow. built-in answers still work.":e?.code==="bad_key"?"your gemini key got rejected. check it in You → settings.":"lost the connection. try again."}}
+  catch(e){reply={text:e?.code==="rate_limited"?(e.daily?"gemini's out of free questions for today. i'll be back tomorrow. built-in answers still work.":"too many questions too fast. give me a minute."):e?.code==="bad_key"?"your gemini key got rejected. check it in You → settings.":"lost the connection. try again."}}
   CHAT.busy=false;CHAT.msgs.push({who:"rot",...reply});saveChat();renderChat()}
 async function rotGemini(text){
   const hist=CHAT.msgs.slice(-13,-1).map(m=>`${m.who==="me"?"User":"ROT"}: ${m.text}`).join("\n");
@@ -1306,7 +1327,8 @@ const pwOf=key=>S.prices.find(p=>p.id===key);
 const money2=(v,c)=>v==null?"":`${CUR?.[c]||(c&&c!=="USD"?c+" ":"$")}${(+v)>=100||Number.isInteger(+v)?Math.round(+v).toLocaleString():(+v).toFixed(2)}`;
 function pwAgo(at){const m=Math.round((Date.now()-at)/6e4);return m<60?`${m}m ago`:m<1440?`${Math.round(m/60)}h ago`:`${Math.round(m/1440)}d ago`}
 async function checkPrices(force){if(!sample||!db||PW.busy)return;const targets=pwTargets();if(!targets.length)return;
-  const last=Math.max(0,...S.prices.map(p=>p.checked||0));if(!force&&Date.now()-last<12*36e5)return;
+  const last=Math.max(0,...S.prices.map(p=>p.checked||0));if(!force&&Date.now()-last<24*36e5)return;
+  let fail=0;try{fail=+localStorage.getItem("rot-pw-fail")||0}catch{}if(!force&&Date.now()-fail<6*36e5)return;
   PW.busy=true;$("pw-check").disabled=true;$("pw-meta").textContent="Gemini is checking prices…";
   const region=(navigator.language||"en-US").split("-")[1]||"US",budget=S.prefs?.budget||2;
   const prompt=`You're a price tracker for a wardrobe app. Search the web for the current price of each item below, the way a shopper in region ${region} would buy it new today. ${personText()}
@@ -1317,7 +1339,7 @@ Items:
 ${targets.map(t=>t.kind==="gap"?`- key ${t.key}: ${t.label}${t.brands.length?` (suggested brands: ${t.brands.join(", ")})`:""}${t.size?` (size ${t.size})`:""}`:`- key ${t.key}: ${t.label}${t.brand?` by ${t.brand}`:""}, product page ${t.url}`).join("\n")}
 Reply with only JSON, no other text: {"prices":[{"key": same key, "price": number, "currency": "USD" or the 3-letter code, "store": shop name, "url": product page link, "sale": true/false, "was": original price or null, "note": under 12 words}]}. Leave an item out if you can't find a real current listing.`;
   // Google only allows free web search on some Gemini models, so fall back to ones that have it
-  const ask=async()=>{let last;for(const m of [undefined,"gemini-2.5-flash","gemini-2.5-flash-lite"]){try{return await sample.json(prompt,{search:true,cache:false,model:m})}catch(e){last=e;if(e?.code==="bad_key")throw e}}throw last};
+  const ask=()=>sample.json(prompt,{search:true,cache:false});
   try{const r=await ask();const by=new Map(targets.map(t=>[t.key,t]));const now=Date.now(),alerts=[];
     for(const p of (r.prices||[])){const t=by.get(String(p.key));const price=+p.price;if(!t||!isFinite(price)||price<=0)continue;
       const url=/^https:\/\//.test(String(p.url||""))?String(p.url):t.url||"";const pt={at:now,price,currency:String(p.currency||"USD").slice(0,3).toUpperCase(),store:String(p.store||"").slice(0,60),url,sale:!!p.sale,was:+p.was||null,note:String(p.note||"").slice(0,90)};
@@ -1327,14 +1349,14 @@ Reply with only JSON, no other text: {"prices":[{"key": same key, "price": numbe
       if(drop||newSale||newLow){const a={key:t.key,label:t.label,to:price,from:drop?prev.price:pt.was||null,currency:pt.currency,store:pt.store,url,sale:pt.sale,at:now};alerts.push(a);await db.doc("pricealerts/"+t.key+"-"+now).set(a)}}
     for(const t of targets)if(!pwOf(t.key)&&!(r.prices||[]).some(p=>String(p.key)===t.key))await db.doc("prices/"+t.key).set({kind:t.kind,label:t.label,last:null,history:[],checked:now});
     $("pw-meta").textContent=alerts.length?`${alerts.length} price drop${alerts.length>1?"s":""} found.`:"Checked. No drops yet.";if(alerts.length)toast(`rot › ${alerts[0].label.toLowerCase()} dropped to ${money2(alerts[0].to,alerts[0].currency)}.`)}
-  catch(e){$("pw-meta").textContent=sampleErr(e)}
+  catch(e){$("pw-meta").textContent=sampleErr(e);try{localStorage.setItem("rot-pw-fail",String(Date.now()))}catch{}}
   finally{PW.busy=false;$("pw-check").disabled=false;renderPrices()}}
 function priceLine(key){const p=pwOf(key);if(!p?.last)return "";const l=p.last;
   return `<div class="gap-price"><span>${l.sale?`<span class="sale">SALE</span> `:""}<b>${esc(money2(l.price,l.currency))}</b>${l.was?` <span class="was">${esc(money2(l.was,l.currency))}</span>`:""}</span><span>at ${l.url?`<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.store||"the shop")} ↗</a>`:esc(l.store||"")}</span><span class="muted">checked ${pwAgo(p.checked)}</span></div>`}
 function renderPrices(){const box=$("pw");if(!box)return;box.hidden=!sample;const dot=$("tab-buys").querySelector(".dot");const fresh=S.pricealerts.filter(a=>!a.seen&&Date.now()-a.at<7*864e5);
   if(fresh.length&&!dot)$("tab-buys").insertAdjacentHTML("beforeend",'<span class="dot" aria-label="New price drops"></span>');else if(!fresh.length&&dot)dot.remove();
   if(!sample)return;const last=Math.max(0,...S.prices.map(p=>p.checked||0));
-  if(!PW.busy)$("pw-meta").textContent=last?`Gemini checks prices of your top next buys and liked products every 12 hours. Last check ${pwAgo(last)}.`:"Gemini will check prices of your top next buys and liked products.";
+  if(!PW.busy)$("pw-meta").textContent=last?`Gemini checks prices of your top next buys and liked products once a day. Last check ${pwAgo(last)}.`:"Gemini will check prices of your top next buys and liked products.";
   $("pw-alerts").innerHTML=fresh.sort((a,b)=>b.at-a.at).slice(0,4).map(a=>`<div class="pw-alert"><p>rot › ${esc(a.label.toLowerCase())} ${a.sale&&!a.from?"is on sale":"dropped"}${a.from?` from ${esc(money2(a.from,a.currency))}`:""} to <b>${esc(money2(a.to,a.currency))}</b>${a.store?` at ${esc(a.store)}`:""}.${a.url?` <a href="${esc(a.url)}" target="_blank" rel="noopener">see it ↗</a>`:""}</p><button class="btn ghost small" data-seen="${esc(a.id)}">Got it</button></div>`).join("");
   $("pw-alerts").querySelectorAll("[data-seen]").forEach(b=>b.onclick=async()=>{const a=S.pricealerts.find(x=>x.id===b.dataset.seen);if(a&&db)try{await db.doc("pricealerts/"+a.id).set({...a,id:undefined,seen:true})}catch{}})}
 $("pw-check").onclick=()=>checkPrices(true);
@@ -1362,8 +1384,8 @@ async function runBulk(){BK.running=true;renderBulk();
       if(!r.name&&g.name)r.name=g.name;if(CATNAME[g.cat])r.cat=g.cat;if(!r.color&&g.color)r.color=g.color;
       if(g.brand&&!r.brand){const b=findBrand(g.brand);r.brand=b&&normTxt(b.b)===normTxt(g.brand)?b.b:g.brand}
       r.status=[g.brand,g.model].filter(Boolean).length?`${[g.brand,g.model].filter(Boolean).join(" ")}${g.confidence?` · ${g.confidence} confidence`:""}`:"no brand spotted"}
-    catch(e){r.status=sampleErr(e);if(e?.code==="rate_limited"||e?.code==="bad_key"){r.done=true;break}}
-    r.done=true;renderBulk();await new Promise(res=>setTimeout(res,700))}
+    catch(e){r.status=sampleErr(e);if((e?.code==="rate_limited"&&e.daily)||e?.code==="bad_key"){r.done=true;break}}
+    r.done=true;renderBulk();await new Promise(res=>setTimeout(res,4000))}
   BK.running=false;BK.rows.forEach(r=>r.done=true);renderBulk()}
 $("bk-save").onclick=async()=>{if(!db||!assets){toast("Can't save in this view.");return}const live=BK.rows.filter(r=>!r.gone&&!r.saved);const btn=$("bk-save");btn.disabled=true;let n=0;
   for(const r of live){btn.textContent=`Saving ${++n} of ${live.length}…`;const g=r.ai||{};
@@ -1456,5 +1478,5 @@ renderAll();RP.renderSettings();renderRot();const HASH_TAB=(location.hash||"").s
   db.doc("body/me").onSnapshot(d=>{S.body=d.exists?d.data():null;renderRot();if(S.tab==="you")fillBodyForm()},()=>{});
   // New here? Ask the style quiz once the account's data has had a chance to sync down.
   await RP.firstSync;if(!S.prefs)openOnboard();
-  renderPrices();setTimeout(()=>checkPrices(false),4000);
+  renderPrices();setTimeout(()=>checkPrices(false),25000);
 })();

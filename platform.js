@@ -220,15 +220,19 @@
     const BACKUPS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
     const wait = ms => new Promise(r => setTimeout(r, ms));
     async function call(input, opts = {}) {
-      const chain = [opts.model || model, ...BACKUPS.filter(m => m !== (opts.model || model))];
+      const first = opts.model || model, chain = opts.noFallback ? [first] : [first, ...BACKUPS.filter(m => m !== first)];
       let last;
       for (const m of chain) {
         for (let attempt = 0; attempt < 2; attempt++) {
           try { return await callOnce(input, { ...opts, model: m }) }
           catch (e) { last = e;
             if (e.code === "bad_key" || e.code === "cancelled" || e.code === "network") throw e;
-            if (e.code === "busy" && attempt === 0) { await wait(1500 + Math.random() * 1000); continue }
-            break } // bad_model, rate_limited, busy twice, other errors: next model
+            if (attempt === 0 && e.code === "busy") { await wait(2000 + Math.random() * 1500); continue }
+            // per-minute limit: wait what Google asks (if short) and try the same model again
+            if (attempt === 0 && e.code === "rate_limited" && !e.daily && (e.retry || 0) <= 40) { opts.onWait?.(e.retry || 20); await wait(((e.retry || 20) + 1) * 1000); continue }
+            if (e.code === "rate_limited" && !e.daily) throw e;
+            if (e.code === "ai_error" && !opts.search) throw e;
+            break } // daily limit used up, model missing, busy twice, or no web search on this model: try the next model
         }
       }
       throw last;
@@ -248,7 +252,9 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         const m = j.error?.message || r.statusText;
-        throw { code: r.status === 429 ? "rate_limited" : r.status === 404 ? "bad_model" : r.status === 503 || r.status === 500 || /high demand|overloaded|unavailable/i.test(m) ? "busy" : /api key|permission|unauth/i.test(m) ? "bad_key" : "ai_error", message: m };
+        const det = JSON.stringify(j.error?.details || []), rd = (det.match(/"retryDelay":"(\d+(?:\.\d+)?)s"/) || m.match(/retry in (\d+(?:\.\d+)?)\s*s/i) || [])[1];
+        throw { code: r.status === 429 ? "rate_limited" : r.status === 404 ? "bad_model" : r.status === 503 || r.status === 500 || /high demand|overloaded|unavailable/i.test(m) ? "busy" : /api key|permission|unauth/i.test(m) ? "bad_key" : "ai_error",
+          message: m, retry: rd ? Math.ceil(+rd) : null, daily: /PerDay|per day|daily/i.test(det + " " + m) };
       }
       return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
     }
