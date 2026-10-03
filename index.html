@@ -8,8 +8,8 @@
 <meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F1012" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="icon-192.png?v=2">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+<link rel="icon" type="image/png" href="icon-192.png?v=3">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -128,7 +128,7 @@ label.chip input{position:absolute;opacity:0;pointer-events:none}
 .b-body{grid-column:1/-1;display:grid;gap:8px}
 .b-body .ph{aspect-ratio:1/2}
 .pieces{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:.92rem}
-.pieces li,.mq-legend li{display:flex;align-items:center;gap:8px}
+.pieces li{display:flex;align-items:center;gap:8px}
 .sw{width:12px;height:12px;border-radius:3px;border:1px solid var(--line);flex:0 0 auto}
 .gap{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
 .gap-rank{font:800 1.6rem/1 var(--display);font-stretch:62%;color:var(--accent)}
@@ -142,23 +142,15 @@ label.chip input{position:absolute;opacity:0;pointer-events:none}
 .atlas-link{color:var(--accent);font-weight:600;font-size:.92rem;text-decoration:none;align-self:flex-start}
 .atlas-link:hover{text-decoration:underline}
 .gaps{display:flex;flex-direction:column;gap:12px}
-.mq-panel{width:min(760px,100%)!important}
-.mq-stage{position:relative;height:min(64vh,560px);background:radial-gradient(ellipse at 50% 38%,var(--surface),var(--tag) 75%);border-radius:10px;overflow:hidden;cursor:grab}
-.mq-stage .status{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:16px}
-.mq-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:.92rem}
-.you-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.you-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 .you-grid > *{min-width:0}
 #you-stage{height:min(58vh,480px)}
-.mq-stage{width:100%;max-width:100%}
-.mq-stage canvas{width:100%!important;height:100%!important;display:block}
 .row.tight{gap:8px}
 .row.tight .field{flex:1 1 84px}
 @media (max-width:720px){
   .you-grid{grid-template-columns:minmax(0,1fr);gap:12px}
   .you-grid .panel,#view-you > .panel{padding:14px;gap:12px}
-  .you-mq{order:-1}
   #you-stage{height:clamp(240px,42svh,360px)}
-  .mq-stage{height:clamp(280px,55svh,460px)}
   #view-you h2{font-size:1.25rem}
 }
 .steps{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px}
@@ -281,21 +273,6 @@ button.atlas-link{background:none;border:0;padding:0;cursor:pointer;font-family:
 .trip-day .chat-fit figcaption,.trip-day .chat-fit .cap{display:none}
 #stand{z-index:20;padding:calc(10px + env(safe-area-inset-top,0px)) 10px calc(10px + env(safe-area-inset-bottom,0px))}
 .stand-panel{display:flex;flex-direction:column;gap:10px;padding:12px}
-.st-stage{position:relative;background:var(--ink);display:flex;align-items:center;justify-content:center;min-height:300px}
-.st-stage canvas{max-width:100%;max-height:62dvh;display:block;touch-action:none}
-.st-stage canvas:not(.on){display:none}
-.st-pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;background:var(--surface);border:2px dashed var(--ink)}
-.st-pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.st-pick[hidden]{display:none}
-.st-hint{margin:0;font-size:.85rem}
-.st-controls{display:flex;flex-direction:column;gap:10px}
-.st-controls input[type=range]{width:100%}
-.st-controls .field{flex:none}
-.st-looks .btn[aria-pressed="true"]{background:var(--ink)!important;color:var(--bg)!important}
-.st-poses{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-.st-poses button{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:1.5px solid var(--line);background:var(--surface);font:500 .65rem var(--mono);color:var(--ink);cursor:pointer}
-.st-poses button[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
-.st-poses canvas{width:56px;height:72px;image-rendering:pixelated}
 .pw{border:1.5px solid var(--ink);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .pw-meta{font:500 .78rem var(--mono)}
 .pw-alert{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;border-left:4px solid var(--accent);background:var(--tag);padding:8px 10px}
@@ -413,7 +390,7 @@ body.locked{overflow:hidden}
 .ob-radio label.chip{font-size:.85rem;padding:8px 12px}
 label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="stylesheet" href="theme.css?v=20261001-19">
+<link rel="stylesheet" href="theme.css?v=20261003-1">
 </head>
 <body>
 
@@ -569,12 +546,6 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
         <div class="field"><label class="label" for="b-hide">Rather play down (optional)</label><input type="text" id="b-hide" placeholder="Midsection"></div>
         <div class="row" style="align-items:center"><button class="btn" id="b-save">Save build</button><span class="status" id="b-state"></span></div>
       </div>
-      <div class="panel you-mq">
-        <h2>ROT, dressed as you</h2>
-        <div class="rot-stage"><canvas id="you-rot" width="320" height="560" aria-label="ROT wearing your closet"></canvas></div>
-        <p class="rot-inline" id="you-rot-note"></p>
-        <button class="btn" id="you-stand" style="align-self:flex-start">Put ROT in a fit pic</button>
-      </div>
     </div>
     <details class="panel fold" style="margin-top:16px">
       <summary><h2>On-body photo setup</h2></summary>
@@ -672,22 +643,7 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
     </div>
   </form>
 </div>
-<div class="sheet" id="mq" hidden>
-  <div class="panel mq-panel">
-    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="mq-title">ROT tries it on</h2><button type="button" class="btn ghost small" id="mq-close">Close</button></div>
-    <div class="mq-grid">
-      <div class="rot-stage"><canvas id="mq-rot" width="320" height="560" aria-label="ROT wearing this fit"></canvas></div>
-      <div class="mq-side">
-        <p class="rot-inline" id="mq-say"></p>
-        <label class="chip" id="mq-jacket-wrap" style="align-self:flex-start"><input type="checkbox" id="mq-jacket" checked>Jacket on</label>
-        <ul class="mq-legend" id="mq-legend"></ul>
-        <p class="muted" style="font-size:.85rem" id="mq-body-note">Set your height and build in the You tab so ROT's build matches yours.</p>
-      </div>
-    </div>
-  </div>
-</div>
 <div class="toast" id="toast" role="status" hidden></div>
-
 
 <div class="sheet" id="tagsheet" hidden>
   <div class="panel">
@@ -724,31 +680,6 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
     <p class="status" id="swf-msg" aria-live="polite"></p>
     <div class="row" style="justify-content:flex-end"><button type="submit" class="btn" id="swf-go">Add to the deck</button></div>
   </form>
-</div>
-<div class="sheet" id="stand" hidden>
-  <div class="panel stand-panel" role="dialog" aria-labelledby="st-title">
-    <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><h2 id="st-title">ROT in your pic</h2><button type="button" class="btn ghost small" id="st-close">Close</button></div>
-    <div class="st-stage" id="st-stage">
-      <canvas id="st-cv" aria-label="Your photo with ROT"></canvas>
-      <label class="st-pick" id="st-pick"><span class="rot-line">take a fit pic, or pick one. full body works best.</span><span class="btn">Take or choose a photo</span><input type="file" id="st-file" accept="image/*"></label>
-    </div>
-    <p class="muted st-hint" id="st-hint" hidden>Drag ROT to move it. Use the slider to resize.</p>
-    <div class="st-controls" id="st-controls" hidden>
-      <div class="field"><span class="label">Look</span><div class="row tight st-looks" id="st-looks" style="gap:6px"><button type="button" class="btn ghost small" data-look="manifest">Manifest</button><button type="button" class="btn ghost small" data-look="impact">Impact</button><button type="button" class="btn ghost small" data-look="clean">Clean</button></div></div>
-      <div class="field"><span class="label">Pose</span><div class="st-poses" id="st-poses"></div></div>
-      <div class="field"><label class="label" for="st-size">Size</label><input type="range" id="st-size" min="30" max="170" value="110"></div>
-      <div class="row tight" style="gap:6px">
-        <label class="chip"><input type="checkbox" id="st-behind" checked>Behind me</label>
-        <label class="chip"><input type="checkbox" id="st-aura" checked>Aura</label>
-        <label class="chip"><input type="checkbox" id="st-flip">Flip</label>
-        <button type="button" class="btn ghost small" id="st-glitch">Glitch</button>
-        <label class="btn ghost small" style="position:relative">New photo<input type="file" id="st-file2" accept="image/*" style="position:absolute;inset:0;opacity:0"></label>
-      </div>
-      <p class="status" id="st-status" aria-live="polite"></p>
-      <p class="rot-line" id="st-verdict" hidden></p>
-      <div class="row" style="gap:8px"><button class="btn" id="st-share">Save photo</button><button class="btn ghost" id="st-video">Save video</button><button class="btn ghost" id="st-rate" hidden>ROT's verdict</button></div>
-    </div>
-  </div>
 </div>
 <div class="sheet" id="bulk" hidden>
   <div class="panel bulk-panel" role="dialog" aria-labelledby="bk-title">
@@ -791,12 +722,12 @@ label.chip:has(input:focus-visible){outline:2px solid var(--accent);outline-offs
 </div>
 
 <script>window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c){c.hidden=false;c.textContent="Rotation hit an error: "+(e.message||"unknown")+". Close the app fully and open it again. If this keeps showing, send a screenshot."}});</script>
-<script src="config.js?v=20261001-19"></script>
-<script src="supabase.js?v=20261001-19"></script>
-<script src="platform.js?v=20261001-19"></script>
-<script src="catalog.js?v=20261001-19"></script>
-<script src="size.js?v=20261001-19"></script>
-<script src="rot.js?v=20261001-19"></script>
-<script src="app.js?v=20261001-19"></script>
+<script src="config.js?v=20261003-1"></script>
+<script src="supabase.js?v=20261003-1"></script>
+<script src="platform.js?v=20261003-1"></script>
+<script src="catalog.js?v=20261003-1"></script>
+<script src="size.js?v=20261003-1"></script>
+<script src="rot.js?v=20261003-1"></script>
+<script src="app.js?v=20261003-1"></script>
 </body>
 </html>

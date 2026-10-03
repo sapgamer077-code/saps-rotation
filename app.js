@@ -192,20 +192,49 @@ function fitCard(f,i,mode){const voted=f.vote;return `<article class="fit"><div 
   <div class="fitgrid">${boardHTML(f.items)}<div class="fit-detail">${piecesHTML(f.items)}
   ${f.why?`<p class="rot-line">${esc(f.why.charAt(0).toLowerCase()+f.why.slice(1))}</p>`:""}${f.proportion?`<p class="muted" style="font-size:.92rem"><span class="label">Proportion</span> ${esc(f.proportion)}</p>`:""}
   ${f.missing?`<p class="muted" style="font-size:.92rem"><span class="label">Missing vs. inspo</span> ${esc(f.missing)}</p>`:""}
-  <div class="row" style="gap:6px"><button class="btn ghost small" data-mq="${mode==="new"?i:esc(f.id)}">ROT tries it on</button><button class="btn ghost small" data-share="${mode==="new"?i:esc(f.id)}">Share</button><button class="btn ghost small" data-stand="${mode==="new"?i:esc(f.id)}">In your pic</button></div></div></div>
+  <div class="row" style="gap:6px"><button class="btn ghost small" data-share="${mode==="new"?i:esc(f.id)}">Share</button></div></div></div>
   ${mode==="new"?`<div class="votes"><button class="btn ghost small ${voted===1?"voted-up":""}" data-v="1" data-i="${i}">Good fit</button><button class="btn ghost small ${voted===-1?"voted-down":""}" data-v="-1" data-i="${i}">Not it</button><button class="btn ghost small" data-save="${i}">${f.saved?"Saved":"Save"}</button><button class="btn ghost small${wornToday(f.items)?" voted-wore":""}" data-wore="${i}">${wornToday(f.items)?"Wore it ✓":"Wore this"}</button></div>`
   :`<div class="votes"><button class="btn ghost small${wornToday(f.items)?" voted-wore":""}" data-wores="${esc(f.id)}">${wornToday(f.items)?"Wore it ✓":"Wore this"}</button><button class="btn ghost small" data-unsave="${esc(f.id)}">Remove</button></div>`}</article>`}
 function renderFits(){if(typeof sayNow==="function")sayNow();const o=$("m-out");o.innerHTML=S.lastFits.map((f,i)=>fitCard(f,i,"new")).join("");
-  o.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.mq];openMannequin(f.items,f.title,f.vibe)});
   o.querySelectorAll("[data-v]").forEach(b=>b.onclick=async()=>{const f=S.lastFits[+b.dataset.i];f.vote=+b.dataset.v;renderFits();
     if(db)try{await db.doc("feedback/"+f.key).set({title:f.title,items:f.items,vote:f.vote,at:Date.now()})}catch{}});
-  o.querySelectorAll("[data-stand]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.stand];openStand(f.items,f.vibe)});
   o.querySelectorAll("[data-share]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.share];shareFit(f.items,f.title,f.why,f.vibe)});
   o.querySelectorAll("[data-wore]").forEach(b=>b.onclick=()=>{const f=S.lastFits[+b.dataset.wore];logWear(f.items,f.title)});
   o.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{const f=S.lastFits[+b.dataset.save];if(f.saved||!db)return;
     try{await db.doc("fits/"+f.key).set({title:f.title,items:f.items,why:f.why||"",proportion:f.proportion||"",vibe:f.vibe||"",at:Date.now()});f.saved=true;renderFits();toast("Saved")}catch{toast("Couldn't save.")}});}
-function fallbackFits(pool,temp,wx,vibe){
-  const wet=wx==="Rain"||wx==="Snow";
+/* ---------- weather first ----------
+   The weather decides how many layers and how warm they are; style, inspo and proportion only decide which pieces fill them.
+   warmth: top 1, sweatshirt/hoodie/knit/fleece 2, light jacket 1-2, insulated coat 3. Sum of the upper layers = how warm the outfit is. */
+const UPPER=new Set(["top","mid","outer"]);
+const LAYER_RULES="The weather sets how many layers, not the inspo: 80°F+ one light layer (tee, shirt or polo, no hoodies, sweaters or jackets); 70-79 one layer; 62-69 one layer plus at most one light extra; 52-61 two layers; 40-51 a warm mid layer under a jacket; under 40 add an insulated coat. Rain under 70 means a jacket. Take silhouette, palette and key pieces from their style, never extra layers.";
+const wOf=i=>+i.warmth||(i.cat==="top"?1:2);
+const warmSum=its=>its.filter(i=>UPPER.has(i.cat)).reduce((t,i)=>t+wOf(i),0);
+function layerPlan(temp,wx,extra={}){const wet=wx==="Rain"||wx==="Snow",windy=wx==="Windy",plan=extra.plan||"";
+  // dress for the warm part of the day when the forecast says it gets warmer
+  let t=temp;if(extra.hi!=null&&extra.hi>temp+6)t=Math.round(temp*.4+extra.hi*.6);
+  const B=t>=80?{band:"hot",max:1,lo:1,hi:1,rule:"one light layer only: a tee, shirt or polo, with shorts or light pants. No hoodies, sweatshirts, sweaters, fleece or jackets."}
+    :t>=70?{band:"warm",max:1,lo:1,hi:1,rule:"one layer: a tee, shirt or polo. No hoodies, sweatshirts, sweaters, fleece or jackets."}
+    :t>=62?{band:"mild",max:2,lo:1,hi:2,rule:"one layer is enough; at most one light extra (an overshirt, light jacket or thin knit). Never a hoodie plus a jacket."}
+    :t>=52?{band:"cool",max:2,lo:2,hi:3,rule:"two layers: a base plus one light jacket, overshirt, sweatshirt or knit."}
+    :t>=40?{band:"cold",max:3,lo:3,hi:5,rule:"a warm middle layer (sweatshirt, knit or fleece) under a jacket."}
+    :{band:"freezing",max:3,lo:5,hi:7,rule:"a warm middle layer and an insulated coat.",heavy:true};
+  B.t=t;B.wet=wet;B.notes=[];
+  const coolStart=extra.lo!=null&&extra.lo<=t-12,late=/night|evening|late|dinner|concert|show|bar|club/i.test(plan);
+  if((late||coolStart)&&(B.band==="warm"||B.band==="mild")){B.carry=true;B.notes.push(late?"a light layer for tonight":"a light layer for the cooler morning")}
+  if(wet&&t<70){B.needOuter=true;if(B.lo<2)B.lo=2;B.hi=Math.max(B.hi,B.lo+1);B.max=Math.max(B.max,2)}
+  if(windy&&B.band==="mild"){B.lo=2}
+  B.say=`${t}°${wet?" and "+wx.toLowerCase():windy?" and windy":""}: ${B.rule}`;
+  return B}
+// Strip layers the weather can't justify, warmest first, keeping at least one thing on top.
+function trimToWeather(ids,P){let its=fitItems(ids);const dropped=[];const up=()=>its.filter(i=>UPPER.has(i.cat));
+  const bump=()=>P.carry&&up().some(i=>i.cat==="outer"&&wOf(i)<=1)?1:0;
+  while(up().length>1&&(up().length>P.max+bump()||warmSum(its)>P.hi+bump())){
+    const cands=up().filter(i=>i.cat!=="top").sort((a,b)=>(b.cat==="outer")-(a.cat==="outer")||wOf(b)-wOf(a));
+    const keepOuter=P.needOuter||(P.carry&&cands[0]?.cat==="outer"&&wOf(cands[0])<=1&&up().length<=P.max);
+    const d=keepOuter?cands.find(i=>i.cat!=="outer")||cands[0]:cands[0];if(!d)break;its=its.filter(i=>i!==d);dropped.push(d)}
+  return {ids:its.map(i=>i.id),dropped}}
+function fallbackFits(pool,temp,wx,vibe,extra={}){
+  const P=layerPlan(temp,wx,extra),wet=P.wet;
   const okV=i=>vibe==="any"||!(i.vibes||[]).length||(i.vibes||[]).includes(vibe);
   const wide=i=>i.sil==="oversized"||i.sil==="relaxed";
   const txt=i=>((i.fitNotes||"")+" "+(i.notes||"")+" "+(i.name||"")).toLowerCase();
@@ -213,34 +242,46 @@ function fallbackFits(pool,temp,wx,vibe){
   let bottoms=pick("bottom"),shoes=pick("shoes"),tops=pick("top"),mids=pick("mid"),outers=pick("outer");
   if(!bottoms.length)bottoms=pool.filter(i=>i.cat==="bottom");
   if(!shoes.length)shoes=pool.filter(i=>i.cat==="shoes");
-  if(wet){const isDry=i=>/waterproof|rain|snow/.test(txt(i))||i.warmth>=3;let dry=shoes.filter(isDry);if(!dry.length)dry=pool.filter(i=>i.cat==="shoes"&&isDry(i));if(dry.length)shoes=dry;}
+  if(!tops.length)tops=pool.filter(i=>i.cat==="top");
   if(!mids.length)mids=pool.filter(i=>i.cat==="mid");
   if(!outers.length)outers=pool.filter(i=>i.cat==="outer");
-  const needOuter=temp<55||wet, heavy=temp<40, needMid=temp<68||!tops.length;
-  if(heavy){const h=outers.filter(i=>i.warmth>=3);if(h.length)outers=h;}
-  else if(temp>=50){const l=outers.filter(i=>i.warmth<=2);if(l.length)outers=l;}
-  const tOpts=tops.length?tops:[null], mOpts=needMid&&mids.length?mids:[null], oOpts=needOuter&&outers.length?outers:[null];
-  const BF=bodyFlags();
+  if(wet){const isDry=i=>/waterproof|rain|snow/.test(txt(i))||i.warmth>=3;let dry=shoes.filter(isDry);if(!dry.length)dry=pool.filter(i=>i.cat==="shoes"&&isDry(i));if(dry.length)shoes=dry;}
+  // big closets: sample so the search stays fast on a phone
+  const cap=(arr,n)=>arr.length<=n?arr:arr.slice().sort(()=>Math.random()-.5).slice(0,n);
+  if(bottoms.length*shoes.length*(tops.length+1)*(mids.length+1)*(outers.length+1)>30000){bottoms=cap(bottoms,6);shoes=cap(shoes,4);tops=cap(tops,8);mids=cap(mids,6);outers=cap(outers,6)}
+  const tOpts=[null,...tops],mOpts=[null,...mids],oOpts=[null,...outers];
+  const BF=bodyFlags(),hotish=P.band==="hot"||P.band==="warm";
   const liked=S.feedback.filter(f=>f.vote===1).map(f=>f.items), nope=S.feedback.filter(f=>f.vote===-1).map(f=>f.items);
-  const combos=[];
+  const all=[];
   for(const b of bottoms)for(const sh of shoes)for(const t of tOpts)for(const m of mOpts)for(const o of oOpts){
     const upper=[t,m,o].filter(Boolean);if(!upper.length)continue;
-    const outerMost=o||m||t;let sc=Math.random()*1.5;const why=[],prop=[];
+    if(o&&!t&&!m)continue;                         // a jacket needs something under it
+    const W=upper.reduce((a,i)=>a+wOf(i),0),n=upper.length,bump=P.carry&&o&&wOf(o)<=1?1:0;
+    // weather fit: 0 = right on, bigger = further off. Too warm is worse than a touch cool.
+    const over=Math.max(0,W-P.hi-bump)+Math.max(0,n-P.max-bump),under=Math.max(0,P.lo-W);
+    let miss=over*1.6+under+(over>0?n*.3:0);
+    if(P.needOuter&&!o)miss+=1.5;
+    if(P.heavy&&!(o&&wOf(o)>=3))miss+=1.5;
+    const boot=sh.warmth>=3||/boot/.test(txt(sh)),shorts=/short/.test(txt(b));
+    if(hotish&&boot)miss+=.7;
+    if(!hotish&&P.band!=="mild"&&shorts)miss+=2;
+    let sc=Math.random()*1.2-miss*4;const why=[],prop=[];
+    if(hotish&&shorts)sc+=P.band==="hot"?3.5:1.5;
+    const outerMost=o||m||t;
     const shortTop=upper.some(i=>i.len==="cropped")||(outerMost&&outerMost.sil==="oversized");
     if(wide(b)&&shortTop){sc+=3;prop.push("the short, boxy top half balances the wide leg");}
     if(wide(b)&&!shortTop){sc+=1;}
     if(!wide(b)&&outerMost&&outerMost.sil==="oversized"){sc-=1.5;}
-    const loafer=/loafer/.test(txt(sh)),boot=sh.warmth>=3||/boot/.test(txt(sh));
+    const loafer=/loafer/.test(txt(sh));
     if(boot&&wide(b)){sc+=2;prop.push("the wide jeans stack over the chunky boots");}
     if(loafer&&b.sil==="slim"){sc+=1.5;prop.push("the slimmer leg keeps the loafers visible");}
     if(loafer&&b.sil==="oversized"){sc+=1;prop.push("wide denim pooling over loafers, like the inspo");}
     if(loafer&&(o&&o.warmth>=3)){sc-=1;}
-    if(t&&m&&t.len!=="cropped"&&m.len==="cropped"){sc+=1.5;prop.push("the longer tee shows under the cropped layer");}
+    if(n>=2&&P.max>=2&&t&&(m||o)&&t.len!=="cropped"&&(m||o).len==="cropped"){sc+=1;prop.push("the longer tee shows under the cropped layer");}
     if(BF){const vol=upper.filter(i=>i.sil==="oversized").length+(b.sil==="oversized"?1:0);
       if(BF.big&&vol>=3)sc-=2.5;if(BF.big&&outerMost&&outerMost.sil==="oversized"&&b.sil==="oversized")sc-=1;
       if(BF.short&&b.sil==="oversized"&&!shortTop)sc-=1.5;if(BF.short&&shortTop){sc+=.5;prop.push("the shorter top half keeps your legs looking longer");}
-      if(BF.tall&&upper.length>=2)sc+=.5;if(BF.slim&&upper.length>=2){sc+=.5;prop.push("layering adds shape to a slimmer frame");}
-      if(BF.longTorso&&shortTop){sc+=1;prop.push("the cropped layer evens out a longer torso");}
+      if(BF.longTorso&&shortTop){sc+=1;prop.push("the cropped piece evens out a longer torso");}
       if(BF.longLegs&&outerMost&&outerMost.len!=="cropped")sc+=.5;}
     const vs=[b,sh,...upper].map(i=>i.vibes||[]);
     if(vibe!=="any")sc+=vs.filter(v=>v.includes(vibe)).length*0.5;
@@ -249,28 +290,37 @@ function fallbackFits(pool,temp,wx,vibe){
     if(cols.some(c=>/khaki|tan|sand|wheat/.test(c))&&cols.some(c=>/light|bleach/.test(c)))sc+=0.5;
     const ids=[t,m,o,b,sh].filter(Boolean).map(i=>i.id);
     if(S.wears.length){for(const it of [t,m,o,b,sh].filter(Boolean)){const w=wearOf(it);if(w.since>=21)sc+=0.6;else if(w.since<=1&&w.n)sc-=0.8}
-      const idle=[t,m,o,b].filter(Boolean).find(it=>wearOf(it).since>=21);if(idle&&!why.some(x=>/sitting/.test(x)))why.push(`your ${idle.name.toLowerCase()} has been sitting ${wearOf(idle).since} days`)}
+      const idle=[t,m,o,b].filter(Boolean).find(it=>wearOf(it).since>=21);if(idle)why.push(`your ${idle.name.toLowerCase()} has been sitting ${wearOf(idle).since} days`)}
     for(const L of liked){const ov=ids.filter(x=>L.includes(x)).length;if(ov>=3)sc+=1.5;}
     for(const N of nope){const ov=ids.filter(x=>N.includes(x)).length;if(ov>=3)sc-=3;}
-    if(needOuter&&o)why.push(heavy?"the down jacket handles the cold":"a light jacket for "+(wet?wx.toLowerCase():temp+"°F"));
-    if(wet&&boot)why.push("waterproof boots for the "+wx.toLowerCase());
-    if(!needOuter&&m)why.push("a single layer is enough at "+temp+"°F");
     const vc={};vs.flat().forEach(v=>vc[v]=(vc[v]||0)+1);const top=Object.entries(vc).sort((a,b)=>b[1]-a[1])[0];
-    combos.push({sc,ids,b:b.id,upperKey:(o||m||t).id,vibe:vibe!=="any"?vibe:(top?top[0]:""),why,prop});
+    all.push({sc,miss,W,n,ids,b:b.id,upperKey:outerMost.id,upper,o,vibe:vibe!=="any"?vibe:(top?top[0]:""),why,prop});
   }
-  combos.sort((a,b)=>b.sc-a.sc);
+  // Only fall back to off-weather fits when nothing in the closet suits today
+  const best=Math.min(...all.map(c=>c.miss));const combos=all.filter(c=>c.miss<=best+.6).sort((a,b)=>b.sc-a.sc);
   const out=[],usedB={},usedU={};
   for(const c of combos){if(out.length>=3)break;if(usedB[c.b]&&usedU[c.upperKey])continue;if(out.some(f=>f.items.join()===c.ids.join()))continue;
     usedB[c.b]=1;usedU[c.upperKey]=1;
-    const names=c.ids.map(id=>S.items.find(i=>i.id===id)?.name||"");
+    const layerWord=c.n===1?"one layer":c.n===2?"two layers":"three layers";
+    let wline;
+    if(c.miss>=1&&c.W>P.hi)wline=`nothing you own is light enough for ${P.t}°, so this is the lightest option; a few tees, shirts or polos would fix that`;
+    else if(c.miss>=1&&c.W<P.lo)wline=`it's ${P.t}° and this is the warmest you've got`;
+    else if(P.band==="hot"||P.band==="warm")wline=c.o&&P.carry?`${P.t}° calls for one layer, plus the ${c.o.name.toLowerCase()} as ${P.notes[0]}`:`${P.t}° calls for one layer`;
+    else if(P.needOuter)wline=`${P.wet?"the "+wx.toLowerCase():P.t+"°"} needs a jacket over the base`;
+    else if(P.heavy)wline=`${P.t}°: the warm layer and insulated coat do the work`;
+    else if(c.n===1&&c.W>=2)wline=`one warm layer is enough at ${P.t}°`;
+    else wline=`${P.t}° suits ${layerWord}`;
+    const why=[wline,...c.why].join("; ");
     out.push({title:["Today's pick","Second option","Wildcard"][out.length],vibe:c.vibe,items:c.ids,
-      why:(w=>w.charAt(0).toUpperCase()+w.slice(1))(c.why.length?c.why.join("; "):"matched to today's weather and your vibe")+".",
+      why:why.charAt(0).toUpperCase()+why.slice(1)+".",
       proportion:c.prop.length?c.prop[0].charAt(0).toUpperCase()+c.prop[0].slice(1)+".":""});}
   return out;}
 $("m-stop").onclick=()=>ctl?.abort();
+function dayExtra(plan){const d=WX?.data;return d&&!WX.edited?{plan:plan||"",hi:d.hi,lo:d.lo}:{plan:plan||""}}
 $("m-go").onclick=async()=>{const pool=S.items.filter(i=>!i.wash);const temp=+$("m-temp").value||60,wx=$("m-wx").value,vibe=$("m-vibe").value,plan=$("m-plan").value.trim();
+  const X=dayExtra(plan),P=layerPlan(temp,wx,X);
   if(pool.length<3){$("m-status").textContent="Add at least a top, bottoms and shoes to your closet first.";return}
-  if(!sample){S.lastFits=fallbackFits(pool,temp,wx,vibe).map(f=>({...f,key:"f"+Date.now()+Math.random().toString(36).slice(2,6)}));renderFits();
+  if(!sample){S.lastFits=fallbackFits(pool,temp,wx,vibe,X).map(f=>({...f,key:"f"+Date.now()+Math.random().toString(36).slice(2,6)}));renderFits();
     $("m-status").textContent=(S.recreate?"Recreating a pin needs a Gemini key (You → Settings). These are your best fits for today instead.":"");return}
   const liked=S.feedback.filter(f=>f.vote===1).slice(0,12),nope=S.feedback.filter(f=>f.vote===-1).slice(0,12);
   const names=ids=>ids.map(id=>S.items.find(i=>i.id===id)?.name).filter(Boolean).join(" + ");
@@ -285,7 +335,7 @@ $("m-go").onclick=async()=>{const pool=S.items.filter(i=>!i.wash);const temp=+$(
   imgs=imgs.concat(bodyShots.map(x=>x.b));
   const bodyNote=bodyShots.length?`\nOn-body photos of their own pieces are attached${recreate?" after the inspo image":""}, in this order: ${bodyShots.map((x,k)=>`photo ${k+1+(recreate?1:0)} = ${x.it.id} (${x.it.name})`).join("; ")}. Look at them to judge how each piece actually sits on this person: rise, where hems land, how wide the leg falls, how the jacket hits the hip, shoulder fit, stacking over shoes. Use what you see to balance proportions; trust the photos over the text notes when they disagree.`:"";
   const keys=userStyles();
-  const prompt=`You're styling someone from clothes they already own. ${personText()} ${bodyText()} Use their build to judge how much volume and layering flatters them, and where cropped vs longer layers and wide vs straight legs work best on their frame. Fit and proportion matter more than genre labels: use each piece's silhouette, length and "fit on them" notes to balance proportions (e.g. wide or long bottoms with shorter or boxier tops, intentional layering lengths, how pants break on the shoes).
+  const prompt=`You're styling someone from clothes they already own. ${personText()} ${bodyText()} Use their build to judge how much volume flatters them, and where cropped vs longer pieces and wide vs straight legs work best on their frame. Fit and proportion matter more than genre labels: use each piece's silhouette, length and "fit on them" notes to balance proportions (e.g. wide or long bottoms with shorter or boxier tops, how pants break on the shoes).
 ${pr?`Their style profile from saved inspo: ${pr.summary} Silhouettes they like: ${(pr.silhouettes||[]).join("; ")}. Palette: ${(pr.palette||[]).join(", ")}.${keys.map(v=>pr.vibes?.[v]?` Their ${styleName(v)}: ${pr.vibes[v]}`:"").join("")}`:""}
 ${liked.length?`Fits they liked: ${liked.map(f=>names(f.items)).join(" | ")}`:""}
 ${nope.length?`Fits they rejected: ${nope.map(f=>names(f.items)).join(" | ")}`:""}
@@ -295,15 +345,23 @@ Today: ${temp}°F, ${wx}.${WX.data?` Forecast: ${weatherText()}.`:""}${plan?` Pl
 Closet (id | name | type | color | silhouette, length | warmth 1-3 | styles | notes). Use ONLY these ids:
 ${closetText(pool)}${bodyNote}
 
-Reply with only JSON: {"fits":[{"title": 2-4 word name, "vibe": one of ${JSON.stringify(keys)}, "items": [ids], "why": one sentence on why it works today, "proportion": one sentence on how the pieces balance on their body${recreate?`, "missing": what the inspo has that their closet can't match, or ""`:""}}]}
-${recreate?"Give 2 fits.":"Give 3 distinct fits."} Each fit needs something on top, a bottom and shoes, plus a jacket or coat when it's under about 55°F or wet. Dress for the weather.`;
+Reply with only JSON: {"fits":[{"title": 2-4 word name, "vibe": one of ${JSON.stringify(keys)}, "items": [ids], "weather": one short sentence on the layer decision for today's weather, "why": one sentence on how it carries their style or inspo, "proportion": one sentence on how the pieces balance on their body${recreate?`, "missing": what the inspo has that their closet can't match, or ""`:""}}]}
+${recreate?"Give 2 fits.":"Give 3 distinct fits."} Each fit needs something on top, a bottom and shoes.
+
+How to think, in this order:
+1. WEATHER DECIDES THE LAYERS (hard rule). Dress for ${P.t}°F${P.wet?", "+wx.toLowerCase():""}: ${P.rule}${P.carry?` Exception: one light extra layer is fine for ${P.notes[0].replace(/^a light layer /,"")}.`:""} Warmth numbers: add up the warmth of everything worn on top. Today that total should be ${P.lo===P.hi?P.lo:P.lo+" to "+P.hi}, with at most ${P.max} piece${P.max>1?"s":""} on top.
+2. INSPO DECIDES THE LOOK, NOT THE LAYER COUNT. Inspo photos are often shot in cooler weather, so most of them show layers. Take what makes the inspo theirs (silhouette and pant shape, how things fit, the palette, the key pieces like boots or a certain jean) and translate it to today's weather. Never add a layer because the inspo has one. Example: inspo is a jacket over a hoodie with bootcut jeans and boots, and it's 78°F: keep the bootcut jeans, the boots and the palette, wear one tee or shirt.
+3. If nothing they own suits the weather (for example no tees on a hot day), pick the lightest option, say so plainly in "weather", and don't pretend it's ideal.
+4. Then balance proportions for their body.`;
   ctl=new AbortController();$("m-go").disabled=true;$("m-stop").hidden=false;$("m-status").textContent=bodyShots.length?`Thinking, with ${bodyShots.length} of your on-body shots…`:"Thinking…";
   try{const r=await sample.json(prompt,Object.assign({signal:ctl.signal,cache:false},imgs.length?{images:imgs}:{}));
     const valid=new Set(pool.map(i=>i.id));
-    S.lastFits=(r.fits||[]).map(f=>({...f,items:(f.items||[]).filter(id=>valid.has(id)),key:"f"+Date.now()+Math.random().toString(36).slice(2,6)})).filter(f=>f.items.length);
+    S.lastFits=(r.fits||[]).map(f=>{const ids=(f.items||[]).filter(id=>valid.has(id)),T=trimToWeather(ids,P);
+      const note=T.dropped.length?` Took off the ${T.dropped.map(i=>i.name.toLowerCase()).join(" and ")}: too warm for ${P.t}°.`:"";
+      return {...f,items:T.ids,why:[f.weather,f.why].filter(Boolean).join(" ")+note,key:"f"+Date.now()+Math.random().toString(36).slice(2,6)}}).filter(f=>f.items.length);
     renderFits();$("m-status").textContent=S.lastFits.length?"Rate them so the next batch gets closer.":"No usable fits came back. Try again.";
   }catch(e){if(e&&e.code==="cancelled"){$("m-status").textContent="Stopped.";}
-    else{S.lastFits=fallbackFits(pool,temp,wx,vibe).map(f=>({...f,key:"f"+Date.now()+Math.random().toString(36).slice(2,6)}));renderFits();
+    else{S.lastFits=fallbackFits(pool,temp,wx,vibe,X).map(f=>({...f,key:"f"+Date.now()+Math.random().toString(36).slice(2,6)}));renderFits();
       $("m-status").textContent=sampleErr(e)+" These fits came from the built-in stylist instead. Rate them so it learns.";}}finally{$("m-go").disabled=false;$("m-stop").hidden=true}};
 
 /* ---------- each person's brand atlas ---------- */
@@ -693,11 +751,8 @@ function applyTheme(){if(!window.ROT)return;applyHeadFont();const pal=ROT.PALETT
 let rotOutfit=null,rotT=null;
 function renderRot(){clearTimeout(rotT);rotT=setTimeout(()=>{if(!window.ROT)return;
   rotOutfit=dailyOutfit();
-  $("rot-av").innerHTML=rotMark();if(S.tab==="you")drawYou();applyTheme();sayNow()},60)}
+  $("rot-av").innerHTML=rotMark();applyTheme();sayNow()},60)}
 /* Chibi ROT in the outfit's real colors */
-function chibiColors(o){const pool=o.today?fitItems(o.today.ids):S.items,c={};
-  for(const [k] of o.layers||[]){const it=pool.find(i=>ROT.matchPiece(i)===k);if(it){const h=colorOf(it);if(h!=="#8a8a8a")c[ROT.SLOT[k]]=h}}return c}
-function chibiSVG(o,view){return ROT.chibi(o,{colors:chibiColors(o),view})}
 /* ROT's mark for the UI: a dark disc with two lit eyes. Quiet enough to sit in a header. */
 function rotMark(){const pal=ROT.PALETTES[mainStyle()]||ROT.PALETTES.streetwear,a=`rgb(${pal[2].join(",")})`;
   return `<svg class="rot-mark" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" style="fill:var(--mark-bg)"/><g class="ch-eyes" fill="${a}"><rect x="12.5" y="17" width="4" height="6.5" rx="2"/><rect x="23.5" y="17" width="4" height="6.5" rx="2"/></g></svg>`}
@@ -722,7 +777,7 @@ function dailyIds(){const d=today();const w=S.wears.filter(x=>x.day===d).sort((a
   if(c?.day===d&&valid(c.ids||[]).length>=2)return {ids:valid(c.ids),worn:false};
   const pool=S.items.filter(i=>!i.wash);if(pool.length<3||typeof fallbackFits!=="function")return {ids:[],worn:false};
   const temp=WX?.data?WX.data.feels:(+$("m-temp").value||60),wx=WX?.data?wxBucket(WX.data.code,WX.data.wind):($("m-wx").value||"Clear");
-  const fs=fallbackFits(pool,temp,wx,"any"),dh=[...d].reduce((h,c)=>(h*31+c.charCodeAt(0))|0,7)>>>0,f=fs[dh%Math.max(1,fs.length)];const ids=f?f.items:[];
+  const fs=fallbackFits(pool,temp,wx,"any",dayExtra("")),dh=[...d].reduce((h,c)=>(h*31+c.charCodeAt(0))|0,7)>>>0,f=fs[dh%Math.max(1,fs.length)];const ids=f?f.items:[];
   if(ids.length&&(WX?.data||!WX?.loc))try{localStorage.setItem("rot-daily",JSON.stringify({day:d,ids}))}catch{}
   return {ids,worn:false}}
 function dailyOutfit(){const style=mainStyle(),{ids,worn}=dailyIds();
@@ -741,32 +796,10 @@ function applyColorToggle(){document.body.classList.toggle("show-color",showColo
 $("c-color").onclick=()=>{showColor=!showColor;try{localStorage.setItem("rot-color",showColor?"1":"0")}catch{}applyColorToggle()};
 applyColorToggle();
 
-/* ---------- ROT try-on (replaces the 3D mannequin) ---------- */
-// ROT's build: wider for broader/heavier builds, taller or shorter with height
-function rotBody(b){b=Object.assign({},BODY_DEF,b||S.body||{});const d=dims(b);
-  const sx=clamp(0.9+(d.g-0.82)*0.28+(d.sh-1)*0.5,0.86,1.2),sy=clamp(0.9+(d.inches-62)*0.011,0.9,1.05);return {sx,sy}}
-let mqState=null;
-function drawTryOn(){if(!mqState||!window.ROT)return;const its=$("mq-jacket").checked?mqState.its:mqState.its.filter(i=>i.cat!=="outer");
-  const style=STYLES[mqState.vibe]?mqState.vibe:mainStyle();ROT.render($("mq-rot"),ROT.outfitFromItems(its,style),{scale:2,seed:9,glitch:false,body:rotBody()})}
-function openMannequin(ids,title,vibe){const its=fitItems(ids);mqState={its,vibe};$("mq-title").textContent=title||"ROT tries it on";
-  $("mq-jacket-wrap").hidden=!its.some(i=>i.cat==="outer");$("mq-jacket").checked=true;
-  $("mq-legend").innerHTML=its.map(i=>{const worn=!!ROT.matchPiece(i);
-    return `<li><span class="sw" style="background:${colorOf(i)}"></span>${esc(i.name)} <span class="muted">· ${worn?esc(i.sil):"not drawn yet"}</span></li>`}).join("");
-  $("mq-say").textContent=its.some(i=>i.cat==="outer")?"this is me in your fit. toggle the jacket to see what's under it.":"this is me in your fit.";
-  $("mq-body-note").hidden=!!S.body;$("mq").hidden=false;drawTryOn()}
-function closeMannequin(){$("mq").hidden=true}
-$("mq-close").onclick=closeMannequin;$("mq").addEventListener("click",e=>{if(e.target.id==="mq")closeMannequin()});
-$("mq-jacket").onchange=drawTryOn;
-
 /* ---------- you tab ---------- */
 let yT=null;
-function drawYou(body){if(!window.ROT||!$("you-rot"))return;const o=rotOutfit||ROT.outfitFor({style:mainStyle(),items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]});
-  ROT.render($("you-rot"),o,{scale:2,seed:7,glitch:true,body:rotBody(body)});
-  const owned=o.detail?o.detail.filter(d=>d.owned).length:0,pinned=o.detail?o.detail.filter(d=>d.pinned&&!d.owned).length:0;
-  $("you-rot-note").textContent=`${owned} piece${owned===1?"":"s"} from your closet, ${pinned} from your pins. style: ${styleName(mainStyle()).toLowerCase()}.`}
-function openYou(){fillBodyForm();fillSizeForm();drawYou()}
+function openYou(){fillBodyForm();fillSizeForm()}
 function closeYou(){}
-["b-ft","b-in","b-lb","b-build","b-sh","b-prop"].forEach(id=>$(id).addEventListener("input",()=>{clearTimeout(yT);yT=setTimeout(()=>drawYou(readBodyForm()),80)}));
 $("b-save").onclick=async()=>{if(!db){toast("Can't save in this view.");return}const b=readBodyForm();$("b-save").disabled=true;
   try{await db.doc("body/me").set({...b,at:Date.now()});toast("Build saved")}catch{toast("Couldn't save. Try again.")}finally{$("b-save").disabled=false}};
 
@@ -871,9 +904,8 @@ function renderChat(){const L=$("chat-log");
   L.innerHTML=CHAT.msgs.map((m,i)=>{if(m.who==="me")return `<div class="msg me">${esc(m.text)}</div>`;
     const items=(m.items||[]).filter(id=>S.items.some(x=>x.id===id));
     const brands=(m.brands||[]).map(n=>findBrand(n)).filter(Boolean);
-    return `<div class="msg rot">${esc(m.text)}${items.length?`<div class="chat-fit">${fitItems(items).map(x=>cell(x)).join("")}</div>${piecesHTML(items)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn ghost small" data-chatmq="${i}">ROT tries it on</button><button class="btn ghost small" data-chatshare="${i}">Share</button></div>`:""}${brands.length?`<div class="chat-brands">${brands.map(r=>`<button class="brand" data-cb="${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}${actsHTML(m,i)}</div>`}).join("")+
+    return `<div class="msg rot">${esc(m.text)}${items.length?`<div class="chat-fit">${fitItems(items).map(x=>cell(x)).join("")}</div>${piecesHTML(items)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn ghost small" data-chatshare="${i}">Share</button></div>`:""}${brands.length?`<div class="chat-brands">${brands.map(r=>`<button class="brand" data-cb="${esc(r.b)}">${esc(r.b)}<span>${TIER[r.t]||""}</span></button>`).join("")}</div>`:""}${actsHTML(m,i)}</div>`}).join("")+
     (CHAT.busy?`<div class="msg rot typing">thinking…</div>`:"");
-  L.querySelectorAll("[data-chatmq]").forEach(b=>b.onclick=()=>{const m=CHAT.msgs[+b.dataset.chatmq];closeChat();openMannequin(m.items,"ROT's pick","")});
   L.querySelectorAll("[data-chatshare]").forEach(b=>b.onclick=()=>{const m=CHAT.msgs[+b.dataset.chatshare];shareFit(m.items,"rot's pick",m.text,"")});
   L.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{const [mi,ai]=b.dataset.act.split(":").map(Number);runAct(CHAT.msgs[mi],ai)});
   L.querySelectorAll("[data-cb]").forEach(b=>b.onclick=()=>{closeChat();goBrands("all",null,b.dataset.cb)});
@@ -912,7 +944,7 @@ async function sendChat(text){text=(text||"").trim();if(!text||CHAT.busy)return;
   CHAT.busy=false;CHAT.msgs.push({who:"rot",...reply});saveChat();renderChat()}
 async function rotGemini(text){
   const hist=CHAT.msgs.slice(-13,-1).map(m=>`${m.who==="me"?"User":"ROT"}: ${m.text}`).join("\n");
-  const prompt=`You are ROT, the stylist character inside the wardrobe app Rotation: an edgy, dithered pixel figure who wears the user's clothes. Voice: all lowercase, short, dry, confident, a little blunt, never mean, no emoji, no hashtags. Give real, specific styling advice using their actual closet, sizes and weather. Keep replies under 90 words unless they ask for detail. Only recommend real brands. If they ask something unrelated to clothes, style, shopping or their day's plans, answer briefly and steer back.
+  const prompt=`You are ROT, the stylist inside the wardrobe app Rotation. Voice: all lowercase, short, dry, confident, a little blunt, never mean, no emoji, no hashtags. Give real, specific styling advice using their actual closet, sizes and weather. When suggesting what to wear: ${LAYER_RULES} Keep replies under 90 words unless they ask for detail. Only recommend real brands. If they ask something unrelated to clothes, style, shopping or their day's plans, answer briefly and steer back.
 ${chatContext()}
 
 Conversation so far:
@@ -931,7 +963,7 @@ Reply with only JSON: {"reply": your message, "items": [closet ids if you're pro
 function rotBuiltIn(text){const t=text.toLowerCase();const pool=S.items.filter(i=>!i.wash);
   if(/wear|fit|outfit|dress|today|tonight|tomorrow/.test(t)){
     if(pool.length<3)return {text:"i need at least a top, bottoms and shoes in your closet before i can dress you."};
-    const temp=+$("m-temp").value||60,wx=$("m-wx").value;const f=fallbackFits(pool,temp,wx,"any")[0];
+    const temp=+$("m-temp").value||60,wx=$("m-wx").value;const f=fallbackFits(pool,temp,wx,"any",dayExtra(""))[0];
     if(!f)return {text:"couldn't make a full fit from what's clean. add more pieces or take some out of the wash."};
     return {acts:[{t:"save_fit"},{t:"wore"}],text:`${weatherText().split(",").slice(0,2).join(",").toLowerCase()}. ${f.why.charAt(0).toLowerCase()+f.why.slice(1)}${f.proportion?" "+f.proportion.toLowerCase():""}`,items:f.items}}
   const washM=t.match(/^(?:put |mark )?(?:my )?(.+?) (?:is |are )?(?:in the wash|dirty)$/)||t.match(/^wash (?:my )?(.+)$/);
@@ -1079,7 +1111,7 @@ async function tripWeather(pl,start,days){const s=new Date(start+"T12:00:00"),e=
       wx:rain>=50?wxBucket([71,73,75,77,85,86].includes(code)?71:63,wind):wxBucket(code,wind)}})}}
 // one fit per day, preferring pieces already in the bag so you pack less
 function packBuiltIn(days,pool){const packed=new Set(),plan=[];
-  for(const d of days){const temp=Math.round(d.lo+(d.hi-d.lo)*0.6);let opts=[];for(let k=0;k<4;k++)opts.push(...fallbackFits(pool,temp,d.wx,"any"));
+  for(const d of days){const temp=Math.round(d.lo+(d.hi-d.lo)*0.6);let opts=[];for(let k=0;k<4;k++)opts.push(...fallbackFits(pool,temp,d.wx,"any",{lo:d.lo}));
     const seen=new Set();opts=opts.filter(f=>{const k=f.items.join();if(seen.has(k))return false;seen.add(k);return true});
     const used=new Set(plan.map(p=>p.items.join()));
     const best=opts.map(f=>({f,s:f.items.filter(id=>packed.has(id)).length*2-(used.has(f.items.join())?3:0)-f.items.length*0.5})).sort((a,b)=>b.s-a.s)[0];
@@ -1098,8 +1130,7 @@ function renderTrip(t){const box=$("trip-out");if(!t){box.innerHTML="";return}
     <p class="label" style="margin-top:8px">Also pack</p><ul>${t.extras.map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`+
     t.plan.map((d,i)=>`<div class="trip-day"><h3>${esc(d.label)}</h3><span class="wxl">feels ${d.lo}–${d.hi}°F · ${esc(WX_CODES[d.code]||d.wx)}${d.rain>=30?` · ${d.rain}% rain`:""}${d.wind>=18?` · windy`:""}</span>
       ${d.items.length?`<div class="chat-fit">${fitItems(d.items).map(x=>cell(x)).join("")}</div>${piecesHTML(d.items)}`:""}${d.note?`<p class="rot-line">${esc(d.note.charAt(0).toLowerCase()+d.note.slice(1))}</p>`:""}
-      ${d.items.length?`<button class="btn ghost small" style="align-self:flex-start" data-tripmq="${i}">ROT tries it on</button>`:""}</div>`).join("");
-  box.querySelectorAll("[data-tripmq]").forEach(b=>b.onclick=()=>{const d=t.plan[+b.dataset.tripmq];openMannequin(d.items,d.label,"")})}
+      </div>`).join("")}
 $("trip-form").onsubmit=async e=>{e.preventDefault();const q=$("trip-city").value.trim(),start=$("trip-start").value,days=Math.max(1,Math.min(14,+$("trip-days").value||3)),plan=$("trip-plan").value.trim();
   const pool=S.items.filter(i=>!i.wash);if(pool.length<3){$("trip-status").textContent="Add a top, bottoms and shoes to your closet first.";return}
   if(!q||!start){$("trip-status").textContent="Add a city and a date.";return}
@@ -1116,7 +1147,7 @@ Their styles: ${styleDefs(userStyles())}.
 Trip: ${TRIP.place.name}, ${TRIP.place.country||""}, ${days} days.${plan?` Plans: ${plan}.`:""}
 ${W.typical?"Typical weather for those dates (last year's):":"Forecast"} (feels-like °F):
 ${W.days.map(d=>`${d.date}: ${d.lo}-${d.hi}°F, ${WX_CODES[d.code]||d.wx}, ${d.rain}% rain, wind ${d.wind} mph`).join("\n")}
-Pack as few pieces as possible: re-wear bottoms, outerwear and shoes across days, vary tops. One full outfit per day (top or layer, bottom, shoes, plus a jacket when it's cold or wet). Match each day's weather.
+Pack as few pieces as possible: re-wear bottoms, outerwear and shoes across days, vary tops. One full outfit per day (something on top, bottom, shoes). ${LAYER_RULES}
 Closet (id | name | type | color | silhouette, length | warmth 1-3 | styles | notes). Use ONLY these ids:
 ${closetText(pool)}
 Reply with only JSON: {"note": one short lowercase sentence in the voice of ROT, a blunt stylist, about how you packed, "days": [{"date": "YYYY-MM-DD", "items": [ids], "note": one short sentence on why this works that day}], "extras": [short strings for non-closet things to bring, like underwear counts, an umbrella]}`,{cache:false,modelTier:"complex"});
@@ -1135,195 +1166,30 @@ if(TRIP.last){$("trip-city").value=TRIP.last.city||"";renderTrip(TRIP.last)}
 async function bmpFor(id){try{const b=await RP.getBlob(id);return b?await createImageBitmap(b):null}catch{return null}}
 function wrapText(x,text,maxW){const words=String(text).split(/\s+/),lines=[];let cur="";for(const w of words){const t=cur?cur+" "+w:w;if(x.measureText(t).width>maxW&&cur){lines.push(cur);cur=w}else cur=t}if(cur)lines.push(cur);return lines}
 async function fitCardImage(ids,title,why,vibe){const its=fitItems(ids);if(!its.length)throw 0;
+  // A quiet editorial card: off-white page, the real photos, the pieces, one line on why.
   const W=1080,H=1350,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
-  const style=STYLES[vibe]?vibe:mainStyle(),[ink,paper,acc]=(ROT.PALETTES[style]||ROT.PALETTES.streetwear).map(a=>`rgb(${a.join(",")})`);
+  const paper="#F7F6F3",ink="#16171A",muted="#7A7C83",line="#E2E0DA",M=72;
   try{await document.fonts.ready}catch{}
-  const MONO='"IBM Plex Mono", ui-monospace, monospace',DISP='"Silkscreen", "IBM Plex Mono", monospace',BODY='"Archivo", system-ui, sans-serif';
-  x.fillStyle=paper;x.fillRect(0,0,W,H);
-  // header
-  x.fillStyle=ink;x.font=`700 30px ${MONO}`;x.textBaseline="top";x.fillText("ROTATION",56,52);
-  x.font=`500 26px ${MONO}`;const d=new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}).toLowerCase();x.fillText(d,W-56-x.measureText(d).width,54);
-  x.fillRect(56,98,W-112,4);
-  x.font=`700 64px ${DISP}`;const tl=wrapText(x,(title||"today's fit").toUpperCase(),W-112).slice(0,2);tl.forEach((l,i)=>x.fillText(l,56,128+i*70));
-  const top=128+tl.length*70+24;
-  // ROT wearing the fit (left)
-  const rc=document.createElement("canvas");rc.width=160;rc.height=280;ROT.render(rc,ROT.outfitFromItems(its,style),{scale:1,seed:9,glitch:true,body:rotBody()});
-  const rw=360,rh=630;x.fillStyle=ink;x.fillRect(56,top,rw+8,rh+8);x.imageSmoothingEnabled=false;x.drawImage(rc,60,top+4,rw,rh);x.fillStyle=acc;x.fillRect(60,top+rh-6,rw,10);
-  // real photos (right grid)
-  const gx=56+rw+40,gw=W-56-gx,n=Math.min(its.length,6),cols=n<=2?1:2,rows=Math.ceil(n/cols),gap=14,cw=(gw-(cols-1)*gap)/cols,ch=(rh+8-(rows-1)*gap)/rows;
+  const SERIF='"Instrument Serif", Georgia, serif',SANS='"Inter", system-ui, sans-serif';
+  x.fillStyle=paper;x.fillRect(0,0,W,H);x.textBaseline="top";
+  x.fillStyle=ink;x.font=`400 46px ${SERIF}`;x.fillText("Rotation",M,M-6);
+  x.fillStyle=muted;x.font=`400 24px ${SANS}`;const d=new Date().toLocaleDateString(undefined,{month:"long",day:"numeric"});x.fillText(d,W-M-x.measureText(d).width,M+8);
+  x.fillStyle=ink;x.font=`400 64px ${SERIF}`;const tl=wrapText(x,title||"Today's fit",W-2*M).slice(0,2);tl.forEach((l,k)=>x.fillText(l,M,M+90+k*70));
+  const top=M+90+tl.length*70+30,n=Math.min(its.length,6),cols=n<=2?n:n<=4?2:3,rows=Math.ceil(n/cols),gap=16,gw=W-2*M,cw=(gw-(cols-1)*gap)/cols,gh=660,ch=(gh-(rows-1)*gap)/rows;
   x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
-  for(let i=0;i<n;i++){const it=its[i],cx=gx+(i%cols)*(cw+gap),cy=top+Math.floor(i/cols)*(ch+gap);x.fillStyle="#fff";x.fillRect(cx,cy,cw,ch);
-    const bm=await bmpFor(it.flat||it.body);if(bm){const s=Math.max(cw/bm.width,ch/bm.height),dw=bm.width*s,dh=bm.height*s;x.save();x.beginPath();x.rect(cx,cy,cw,ch);x.clip();x.drawImage(bm,cx+(cw-dw)/2,cy+(ch-dh)/2,dw,dh);x.restore()}
-    else{x.fillStyle=ink;x.font=`500 22px ${MONO}`;x.fillText((SLOT[it.cat]||it.cat).toLowerCase(),cx+14,cy+14)}
-    x.strokeStyle=ink;x.lineWidth=4;x.strokeRect(cx,cy,cw,ch)}
-  // pieces
-  let y=top+rh+48;x.fillStyle=ink;x.font=`600 30px ${BODY}`;
+  for(let k=0;k<n;k++){const it=its[k],cx=M+(k%cols)*(cw+gap),cy=top+Math.floor(k/cols)*(ch+gap);x.fillStyle="#ECEAE5";x.fillRect(cx,cy,cw,ch);
+    const bm=await bmpFor(it.flat||it.body);if(bm){const sc=Math.max(cw/bm.width,ch/bm.height),dw=bm.width*sc,dh=bm.height*sc;x.save();x.beginPath();x.rect(cx,cy,cw,ch);x.clip();x.drawImage(bm,cx+(cw-dw)/2,cy+(ch-dh)/2,dw,dh);x.restore()}
+    else{x.fillStyle=muted;x.font=`400 22px ${SANS}`;x.fillText(CATNAME[it.cat]||it.cat,cx+18,cy+18)}}
+  let y=top+gh+44;x.fillStyle=line;x.fillRect(M,y-22,W-2*M,2);
   for(const it of its.slice(0,6)){const label=it.brand&&!it.name.toLowerCase().includes(it.brand.toLowerCase())?`${it.brand} ${it.name}`:it.name;
-    x.fillStyle=colorOf(it);x.fillRect(56,y+6,22,22);x.strokeStyle=ink;x.lineWidth=2;x.strokeRect(56,y+6,22,22);x.fillStyle=ink;x.fillText(wrapText(x,label,W-112-40)[0],92,y);y+=46;if(y>H-150)break}
-  // rot's line + footer
-  if(why&&y<H-140){x.font=`500 26px ${MONO}`;x.fillStyle=ink;wrapText(x,"rot › "+why.charAt(0).toLowerCase()+why.slice(1),W-112).slice(0,2).forEach((l,i)=>x.fillText(l,56,y+14+i*36))}
-  x.fillStyle=ink;x.fillRect(0,H-70,W,70);x.fillStyle=paper;x.font=`600 24px ${MONO}`;x.fillText("dressed by rot · "+location.host.replace(/^www\./,""),56,H-52);x.fillStyle=acc;x.fillRect(W-56-90,H-48,90,26);
+    x.fillStyle=colorOf(it);x.beginPath();x.arc(M+9,y+15,9,0,Math.PI*2);x.fill();x.fillStyle=ink;x.font=`400 28px ${SANS}`;x.fillText(wrapText(x,label,W-2*M-40)[0],M+34,y);y+=44;if(y>H-150)break}
+  if(why&&y<H-130){x.fillStyle=muted;x.font=`400 italic 28px ${SERIF}`;wrapText(x,why,W-2*M).slice(0,2).forEach((l,k)=>x.fillText(l,M,y+10+k*36))}
+  x.fillStyle=muted;x.font=`400 20px ${SANS}`;const ft=location.host.replace(/^www\./,"");x.fillText(ft,M,H-M+10);
   return await new Promise(r=>c.toBlob(r,"image/png"))}
 async function shareFit(ids,title,why,vibe){try{toast("Making the card…");const blob=await fitCardImage(ids,title,why,vibe);const file=new File([blob],"rotation-fit.png",{type:"image/png"});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:title||"My fit",text:"dressed by rot"})}catch(e){if(e.name!=="AbortError")throw e}return}
+    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:title||"My fit",text:"via Rotation"})}catch(e){if(e.name!=="AbortError")throw e}return}
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="rotation-fit.png";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),20000);toast("Saved the card. Share it from your photos or downloads.")}
   catch{toast("Couldn't make the card.")}}
-
-/* ---------- ROT in your pic ---------- */
-const ST={photo:null,w:0,h:0,x:.72,y:.9,size:1.1,pose:"loom",look:"manifest",mask:null,base:null,assets:null,behind:true,aura:true,flip:false,seed:7,items:null,vibe:"",person:null,segFailed:false,busy:false};
-const SEG_CDN="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/";
-let segLib=null;
-function loadSeg(){if(segLib)return segLib;segLib=new Promise((res,rej)=>{const s=document.createElement("script");s.src=SEG_CDN+"selfie_segmentation.js";s.crossOrigin="anonymous";
-  s.onload=()=>{try{const seg=new window.SelfieSegmentation({locateFile:f=>SEG_CDN+f});seg.setOptions({modelSelection:0,selfieMode:false});res(seg)}catch(e){rej(e)}};s.onerror=rej;document.head.appendChild(s)});
-  segLib.catch(()=>{segLib=null});return segLib}
-function standOutfit(){const style=STYLES[ST.vibe]?ST.vibe:mainStyle();
-  if(ST.items?.length)return ROT.outfitFromItems(fitItems(ST.items),style);
-  return rotOutfit||ROT.outfitFor({style,items:S.items,pins:tagCounts(),focus:S.prefs?.focus||[]})}
-const LOOKS={manifest:{grade:1,dissolve:1,lines:0,rim:1,grain:1},impact:{grade:1,dissolve:0,lines:1,rim:1,grain:1,streak:1},clean:{grade:0,dissolve:0,lines:0,rim:0,grain:0}};
-const B8S=[[0,32,8,40,2,34,10,42],[48,16,56,24,50,18,58,26],[12,44,4,36,14,46,6,38],[60,28,52,20,62,30,54,22],[3,35,11,43,1,33,9,41],[51,19,59,27,49,17,57,25],[15,47,7,39,13,45,5,37],[63,31,55,23,61,29,53,21]];
-const hash=(x,y,k)=>{let h=(x*374761393+y*668265263+k*2147483647)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295};
-// ROT at native pixels, plus everything that only changes with pose/outfit/seed (cached)
-function standBase(){const o=standOutfit(),key=[ST.pose,ST.seed,o.style,JSON.stringify(o.layers),JSON.stringify(rotBody())].join("|");
-  if(ST.base?.key===key)return ST.base;
-  const pal=ROT.PALETTES[o.style]||ROT.PALETTES.streetwear,rc=document.createElement("canvas");ROT.render(rc,o,{scale:1,seed:ST.seed,glitch:true,body:rotBody(),cutout:true,pose:ST.pose});
-  const P=40,w=rc.width+P*2,h=rc.height+P*2,d=rc.getContext("2d").getImageData(0,0,rc.width,rc.height).data;
-  let y0=1e9,y1=0,x0=1e9,x1=0;const eyes=[];
-  for(let y=0;y<rc.height;y++)for(let x=0;x<rc.width;x++){const i=(y*rc.width+x)*4;if(d[i+3]){if(y<y0)y0=y;if(y>y1)y1=y;if(x<x0)x0=x;if(x>x1)x1=x;
-    if(Math.abs(d[i]-pal[2][0])<6&&Math.abs(d[i+1]-pal[2][1])<6&&Math.abs(d[i+2]-pal[2][2])<6)eyes.push([x+P,y+P])}}
-  // eyes = accent pixels in the top fifth of the figure (zips and snaps stay put)
-  const headY=y0+(y1-y0)*.2,eyePx=eyes.filter(([,y])=>y-P<=headY);
-  const blur=(px)=>{const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.filter=`blur(${px}px)`;x.drawImage(rc,P,P);x.drawImage(rc,P,P-4);x.filter="none";return x.getImageData(0,0,w,h).data};
-  ST.base={key,rc,P,w,h,pal,style:o.style,box:[x0+P,y0+P,x1+P,y1+P],eyes:eyePx,auraA:blur(10),rimA:blur(2)};return ST.base}
-// one animation frame of the ROT layer
-function standLayer(t,look){const B=standBase(),{rc,P,w,h,pal}=B,acc=pal[2],paper=pal[1];
-  const L=document.createElement("canvas");L.width=w;L.height=h;const x=L.getContext("2d");
-  const fr=Math.floor(t*12);
-  if(ST.aura){const img=x.createImageData(w,h),D=img.data,A=B.auraA,Rm=B.rimA;
-    for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const i=(yy*w+xx)*4;
-      const wob=.78+.22*Math.sin(yy/6-t*7)+.12*(hash(xx>>2,yy>>2,fr)-.5);
-      const v=A[i+3]/255*1.9*wob,th=(B8S[yy&7][xx&7]+.5)/64;
-      if(look.rim&&Rm[i+3]>40&&Rm[i+3]<215){D[i]=Math.min(255,paper[0]+20);D[i+1]=Math.min(255,paper[1]+20);D[i+2]=Math.min(255,paper[2]+20);D[i+3]=hash(xx,yy,fr)>.25?235:0}
-      else if(v>th){D[i]=acc[0];D[i+1]=acc[1];D[i+2]=acc[2];D[i+3]=170+Math.round(60*v)}}
-    x.putImageData(img,0,0)}
-  // chromatic ghost that jitters, then ROT
-  const g=document.createElement("canvas");g.width=rc.width;g.height=rc.height;const gx=g.getContext("2d");gx.drawImage(rc,0,0);gx.globalCompositeOperation="source-in";gx.fillStyle=`rgb(${acc.join(",")})`;gx.fillRect(0,0,g.width,g.height);
-  const jx=(hash(fr,1,ST.seed)>.8?-5:-2),jy=hash(fr,2,ST.seed)>.9?2:0;
-  x.globalAlpha=.5;x.drawImage(g,P+jx,P+jy);x.globalAlpha=.96;x.drawImage(rc,P,P);x.globalAlpha=1;
-  // occasional glitch slice
-  if(hash(fr,3,ST.seed)>.82){const sy=Math.floor(B.box[1]+hash(fr,4,1)*(B.box[3]-B.box[1])),sh=2+Math.floor(hash(fr,5,1)*5),sx=(hash(fr,6,1)>.5?1:-1)*(3+Math.floor(hash(fr,7,1)*6));
-    const strip=x.getImageData(0,sy,w,sh);x.clearRect(0,sy,w,sh);x.putImageData(strip,sx,sy)}
-  // legs dissolve into static, with bits drifting up
-  if(look.dissolve){const [bx0,by0,bx1,by1]=B.box,fy0=by0+(by1-by0)*.5,img=x.getImageData(0,0,w,h),D=img.data;
-    for(let yy=Math.floor(fy0);yy<h;yy++){const f=Math.min(1,(yy-fy0)/(by1-fy0+1));for(let xx=0;xx<w;xx++){const i=(yy*w+xx)*4;if(!D[i+3])continue;
-      if(hash(xx>>1,yy>>1,fr>>1)<f*1.15)D[i+3]=0;else if(f>.5)D[i+3]=Math.round(D[i+3]*(1.25-f))}}
-    x.putImageData(img,0,0);
-    for(let k=0;k<46;k++){const life=(t*.55+hash(k,9,ST.seed))%1,px=bx0+hash(k,10,ST.seed)*(bx1-bx0)+Math.sin(t*2+k)*4,py=by1-life*(by1-by0)*.75;
-      x.fillStyle=k%3?`rgba(${pal[0].join(",")},${(1-life)*.9})`:`rgba(${acc.join(",")},${(1-life)})`;const sz=k%4?2:3;x.fillRect(Math.round(px),Math.round(py),sz,sz)}}
-  return {L,B}}
-function gradeCanvas(src,pal){const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");
-  x.filter="contrast(1.22) saturate(.72) brightness(.86)";x.drawImage(src,0,0,ST.w,ST.h);x.filter="none";
-  x.globalCompositeOperation="soft-light";x.fillStyle=`rgba(${pal[2].join(",")},.28)`;x.fillRect(0,0,ST.w,ST.h);
-  x.globalCompositeOperation="multiply";x.fillStyle=`rgba(${pal[0].map(v=>Math.min(255,v+120)).join(",")},.35)`;x.fillRect(0,0,ST.w,ST.h);
-  x.globalCompositeOperation="source-over";const v=x.createRadialGradient(ST.w/2,ST.h*.45,Math.min(ST.w,ST.h)*.35,ST.w/2,ST.h*.5,Math.max(ST.w,ST.h)*.75);
-  v.addColorStop(0,"rgba(0,0,0,0)");v.addColorStop(1,"rgba(0,0,0,.62)");x.fillStyle=v;x.fillRect(0,0,ST.w,ST.h);return c}
-function personFrom(bg){if(!ST.mask)return null;const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");x.drawImage(ST.mask,0,0);x.globalCompositeOperation="source-in";x.drawImage(bg,0,0,ST.w,ST.h);return c}
-function stageAssets(look){const pal=standBase().pal,k=[look.grade,pal.join()].join("|");
-  if(ST.assets?.k===k&&ST.assets.mask===ST.mask)return ST.assets;
-  const bg=look.grade?gradeCanvas(ST.photo,pal):ST.photo;
-  let grain=null;if(look.grain){grain=document.createElement("canvas");grain.width=grain.height=128;const gx=grain.getContext("2d"),im=gx.createImageData(128,128);
-    for(let i=0;i<im.data.length;i+=4){const v=Math.random()*255;im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=26}gx.putImageData(im,0,0)}
-  ST.assets={k,mask:ST.mask,bg,person:personFrom(bg),grain};return ST.assets}
-function drawStand(cv,t=0){if(!ST.photo)return;const look=LOOKS[ST.look]||LOOKS.manifest;
-  if(cv.width!==ST.w||cv.height!==ST.h){cv.width=ST.w;cv.height=ST.h}const x=cv.getContext("2d");const A=stageAssets(look);
-  x.drawImage(A.bg,0,0,ST.w,ST.h);
-  const {L,B}=standLayer(t,look),{P,rc,pal}=B,rh=rc.height,dh=ST.size*ST.h,sc=dh/rh,dw=L.width*sc,dH=L.height*sc;
-  const bob=Math.sin(t*2*Math.PI/2.6)*ST.h*.01;const cx=ST.x*ST.w,feet=ST.y*ST.h+bob,left=cx-dw/2,top=feet-(P+rh)*sc;
-  const mapX=px=>{const X=left+px*sc;return ST.flip?2*cx-X:X},mapY=py=>top+py*sc;
-  // speed lines from ROT's chest
-  if(look.lines){const ox=mapX((B.box[0]+B.box[2])/2),oy=mapY(B.box[1]+(B.box[3]-B.box[1])*.35),R=Math.hypot(ST.w,ST.h),n=72,fr=Math.floor(t*12);
-    x.save();for(let k=0;k<n;k++){if(hash(k,fr,5)<.35)continue;const a=k/n*Math.PI*2+hash(k,fr,6)*.05,r0=dh*(.42+hash(k,fr,7)*.3),wd=.006+hash(k,1,8)*.012;
-      x.fillStyle=k%5?`rgba(${pal[1].join(",")},.32)`:`rgba(${pal[2].join(",")},.45)`;x.beginPath();x.moveTo(ox+Math.cos(a)*r0,oy+Math.sin(a)*r0);
-      x.lineTo(ox+Math.cos(a-wd)*R,oy+Math.sin(a-wd)*R);x.lineTo(ox+Math.cos(a+wd)*R,oy+Math.sin(a+wd)*R);x.closePath();x.fill()}x.restore()}
-  x.save();x.imageSmoothingEnabled=false;if(ST.flip){x.translate(cx,0);x.scale(-1,1);x.translate(-cx,0)}x.drawImage(L,left,top,dw,dH);x.restore();
-  // glowing eyes (and a light streak on Impact)
-  if(B.eyes.length&&look.rim!==0){x.save();x.globalCompositeOperation="lighter";const pulse=1+.18*Math.sin(t*5);
-    const ex=B.eyes.reduce((a,[ex,ey])=>[a[0]+ex,a[1]+ey],[0,0]).map(v=>v/B.eyes.length);
-    for(const [px,py] of [[ex[0]-3,ex[1]],[ex[0]+3,ex[1]]]){const X=mapX(px),Y=mapY(py),r=sc*7*pulse,gr=x.createRadialGradient(X,Y,0,X,Y,r);
-      gr.addColorStop(0,`rgba(${pal[2].join(",")},.95)`);gr.addColorStop(.35,`rgba(${pal[2].join(",")},.45)`);gr.addColorStop(1,`rgba(${pal[2].join(",")},0)`);x.fillStyle=gr;x.fillRect(X-r,Y-r,r*2,r*2);
-      if(look.streak){const dir=ST.flip?-1:1,len=sc*(26+10*Math.sin(t*3));const lg=x.createLinearGradient(X,Y,X+dir*len,Y);lg.addColorStop(0,`rgba(${pal[2].join(",")},.85)`);lg.addColorStop(1,`rgba(${pal[2].join(",")},0)`);
-        x.fillStyle=lg;x.fillRect(Math.min(X,X+dir*len),Y-sc*.8,len,sc*1.6)}}
-    x.restore()}
-  if(ST.behind&&A.person)x.drawImage(A.person,0,0);
-  if(A.grain){x.save();x.globalCompositeOperation="overlay";const off=(Math.floor(t*12)*37)%128;x.translate(-off,-off);x.fillStyle=x.createPattern(A.grain,"repeat");x.fillRect(0,0,ST.w+128,ST.h+128);x.restore()}
-  // tag
-  const f=Math.max(14,Math.round(ST.w/40));x.font=`700 ${f}px "IBM Plex Mono", ui-monospace, monospace`;const tag=`ROT ▸ ${styleName(B.style).toLowerCase()}`,tw=x.measureText(tag).width;
-  const tx=Math.round(ST.w*.04),ty=Math.round(ST.h-f*2.4);x.fillStyle=`rgb(${pal[0].join(",")})`;x.fillRect(tx,ty,tw+f,f*1.5);x.fillStyle=`rgb(${pal[2].join(",")})`;x.fillRect(tx,ty+f*1.5-3,tw+f,3);
-  x.fillStyle=`rgb(${pal[1].join(",")})`;x.textBaseline="middle";x.fillText(tag,tx+f/2,ty+f*.75)}
-// Put ROT on the emptier side of you, bigger than you, head above yours
-function autoPlace(){const m=ST.mask;if(!m)return;const d=m.getContext("2d").getImageData(0,0,ST.w,ST.h).data;let x0=ST.w,x1=0,y0=ST.h,y1=0;
-  for(let y=0;y<ST.h;y+=4)for(let xx=0;xx<ST.w;xx+=4)if(d[(y*ST.w+xx)*4+3]>128){if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(y<y0)y0=y;if(y>y1)y1=y}
-  if(x1<=x0||Math.max(x0,ST.w-x1)<ST.w*.18||y0<ST.h*.03)return;
-  const right=ST.w-x1>=x0,ph=(y1-y0)/ST.h;ST.size=Math.max(.5,Math.min(1.5,ph*1.5));$("st-size").value=Math.round(ST.size*100);
-  const rh=360,sc=ST.size*ST.h/rh,dw=(280+80)*sc;ST.flip=!right;$("st-flip").checked=ST.flip;
-  ST.x=Math.max(.05,Math.min(.95,(right?x1-dw*.02:x0+dw*.02)/ST.w));ST.y=Math.min(1.5,(y0-.1*ST.h+(rh-40)*sc)/ST.h)}
-// animation: ~12fps while the sheet is open
-let stRAF=0,stLast=0;const stT0=performance.now();
-function stLoop(now){stRAF=requestAnimationFrame(stLoop);if(now-stLast<80)return;stLast=now;try{drawStand($("st-cv"),(now-stT0)/1000)}catch{}}
-function startAnim(){cancelAnimationFrame(stRAF);if(matchMedia("(prefers-reduced-motion: reduce)").matches){drawStand($("st-cv"),.4);return}stRAF=requestAnimationFrame(stLoop)}
-function stopAnim(){cancelAnimationFrame(stRAF);stRAF=0}
-function redrawStand(){if(!stRAF&&ST.photo)drawStand($("st-cv"),.4)}
-async function cutPerson(){if(ST.mask||ST.segFailed)return ST.mask;$("st-status").textContent="Finding you in the photo…";
-  try{const seg=await loadSeg();const src=document.createElement("canvas");src.width=ST.w;src.height=ST.h;src.getContext("2d").drawImage(ST.photo,0,0,ST.w,ST.h);
-    const mask=await new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error("timeout")),25000);seg.onResults(r=>{clearTimeout(t);res(r.segmentationMask)});seg.send({image:src}).catch(rej)});
-    const c=document.createElement("canvas");c.width=ST.w;c.height=ST.h;const x=c.getContext("2d");x.filter=`blur(${Math.max(1,Math.round(ST.w/400))}px)`;x.drawImage(mask,0,0,ST.w,ST.h);
-    ST.mask=c;ST.person=c;$("st-status").textContent="";return c}
-  catch{ST.segFailed=true;$("st-behind").checked=false;ST.behind=false;$("st-status").textContent="Couldn't cut you out of this photo, so ROT stands in front. Try a photo with a plainer background.";return null}}
-async function loadStandPhoto(file){if(!file)return;$("st-status").textContent="Loading…";
-  try{const bmp=await createImageBitmap(await shrink(file,1440));ST.photo=bmp;ST.w=bmp.width;ST.h=bmp.height;ST.mask=null;ST.person=null;ST.assets=null;ST.segFailed=false;
-    $("st-pick").hidden=true;$("st-cv").classList.add("on");$("st-controls").hidden=false;$("st-hint").hidden=false;$("st-verdict").hidden=true;$("st-rate").hidden=!sample;
-    ST.size=+$("st-size").value/100;ST.y=Math.min(1.1,.08+ST.size*.8);ST.x=.72;startAnim();$("st-status").textContent="";if(ST.behind){await cutPerson();autoPlace()}}
-  catch{$("st-status").textContent="Couldn't open that photo."}}
-function renderPoses(){const box=$("st-poses");const o=standOutfit();
-  box.innerHTML=Object.entries(ROT.POSES).filter(([k])=>k!=="stand").map(([k,p])=>`<button type="button" data-pose="${k}" aria-pressed="${ST.pose===k}"><canvas width="280" height="360"></canvas>${esc(p.name)}</button>`).join("")+`<button type="button" data-pose="random" aria-pressed="false"><canvas width="280" height="360"></canvas>random</button>`;
-  box.querySelectorAll("[data-pose]").forEach(b=>{const k=b.dataset.pose;if(k!=="random")ROT.render(b.querySelector("canvas"),o,{scale:1,seed:3,glitch:false,body:rotBody(),pose:k});
-    b.onclick=()=>{let k2=k;if(k==="random"){const ks=Object.keys(ROT.POSES).filter(x=>x!=="stand"&&x!==ST.pose);k2=ks[Math.floor(Math.random()*ks.length)]}
-      ST.pose=k2;box.querySelectorAll("[data-pose]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.pose===k2));redrawStand()}})}
-function renderLooks(){$("st-looks").querySelectorAll("[data-look]").forEach(b=>{b.setAttribute("aria-pressed",b.dataset.look===ST.look);b.onclick=()=>{ST.look=b.dataset.look;renderLooks();redrawStand()}})}
-function openStand(items,vibe){ST.items=items||null;ST.vibe=vibe||"";ST.seed=7;ST.base=null;ST.assets=null;setTimeout(renderPoses,30);renderLooks();$("stand").hidden=false;document.body.classList.add("locked");
-  if(!ST.photo){$("st-pick").hidden=false;$("st-cv").classList.remove("on");$("st-controls").hidden=true;$("st-hint").hidden=true}else startAnim()}
-function closeStand(){stopAnim();$("stand").hidden=true;document.body.classList.remove("locked")}
-$("st-close").onclick=closeStand;
-$("st-file").onchange=e=>loadStandPhoto(e.target.files[0]);$("st-file2").onchange=e=>loadStandPhoto(e.target.files[0]);
-$("st-size").oninput=e=>{ST.size=+e.target.value/100;redrawStand()};
-$("st-behind").onchange=async e=>{ST.behind=e.target.checked;if(ST.behind)await cutPerson();redrawStand()};
-$("st-aura").onchange=e=>{ST.aura=e.target.checked;redrawStand()};
-$("st-flip").onchange=e=>{ST.flip=e.target.checked;redrawStand()};
-$("st-glitch").onclick=()=>{ST.seed=1+Math.floor(Math.random()*999);redrawStand()};
-(()=>{const cv=$("st-cv");let drag=null;
-  cv.addEventListener("pointerdown",e=>{const r=cv.getBoundingClientRect();drag={px:e.clientX,py:e.clientY,x:ST.x,y:ST.y,k:ST.w/r.width};cv.setPointerCapture(e.pointerId)});
-  cv.addEventListener("pointermove",e=>{if(!drag)return;ST.x=Math.max(-.2,Math.min(1.2,drag.x+(e.clientX-drag.px)*drag.k/ST.w));ST.y=Math.max(.2,Math.min(1.8,drag.y+(e.clientY-drag.py)*drag.k/ST.h));redrawStand()});
-  const end=()=>{drag=null};cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end)})();
-async function shareBlob(blob,name,text){const file=new File([blob],name,{type:blob.type});
-  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text});return}}catch(e){if(e.name==="AbortError")return}
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),30000);toast("Saved. Find it in your downloads or photos.")}
-$("st-share").onclick=async()=>{const cv=document.createElement("canvas");drawStand(cv,(performance.now()-stT0)/1000);const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",.93));
-  shareBlob(blob,"rot-fit.jpg",$("st-verdict").hidden?"dressed by rot":$("st-verdict").textContent)};
-// a 3-second loop of the animated pic
-$("st-video").onclick=async()=>{const cv=$("st-cv");if(!cv.captureStream||!window.MediaRecorder){toast("This browser can't record video. Save the photo instead.");return}
-  const type=["video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9","video/webm"].find(t=>MediaRecorder.isTypeSupported?.(t));if(!type){toast("This browser can't record video. Save the photo instead.");return}
-  const b=$("st-video");b.disabled=true;b.textContent="Recording…";startAnim();
-  try{const rec=new MediaRecorder(cv.captureStream(24),{mimeType:type,videoBitsPerSecond:6e6}),chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
-    const done=new Promise(r=>rec.onstop=r);rec.start();await new Promise(r=>setTimeout(r,3200));rec.stop();await done;
-    const blob=new Blob(chunks,{type:type.split(";")[0]});await shareBlob(blob,"rot-fit."+(type.includes("mp4")?"mp4":"webm"),"dressed by rot")}
-  catch{toast("Couldn't record. Save the photo instead.")}finally{b.disabled=false;b.textContent="Save video"}};
-$("st-rate").onclick=async()=>{if(!sample||!ST.photo)return;$("st-rate").disabled=true;$("st-status").textContent="ROT is looking…";
-  try{const c=document.createElement("canvas");const s=Math.min(1,900/Math.max(ST.w,ST.h));c.width=ST.w*s;c.height=ST.h*s;c.getContext("2d").drawImage(ST.photo,0,0,c.width,c.height);
-    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.85));
-    const r=await sample.json(`You are ROT, the stylist character in the wardrobe app Rotation: all lowercase, dry, blunt, never mean, no emoji. This is the user's fit pic. ${personText()} Their styles: ${styleDefs(userStyles())}.
-Judge the outfit itself (fit, proportions, colors, shoes, how it reads for their style), not their body or face. Reply with only JSON: {"verdict": one or two short sentences, "score": 1-10, "fix": one specific tweak, using their closet if it helps: ${S.items.slice(0,40).map(i=>i.name).join("; ")}}`,{images:[blob],cache:false});
-    $("st-verdict").textContent=`${r.score?r.score+"/10. ":""}${String(r.verdict||"").toLowerCase()}${r.fix?" fix: "+String(r.fix).toLowerCase():""}`;$("st-verdict").hidden=false;$("st-status").textContent=""}
-  catch(e){$("st-status").textContent=sampleErr(e)}finally{$("st-rate").disabled=false}};
-$("you-stand").onclick=()=>openStand(null,"");
 
 /* ---------- price watch (needs Gemini) ---------- */
 const PW={busy:false};
@@ -1425,8 +1291,7 @@ function renderCal(){if(!$("cal"))return;const {y,m}=CAL,first=new Date(y,m,1),d
   $("cal-stats").textContent=mw.length?`${daysLogged} day${daysLogged>1?"s":""} logged this month.${topIt?` most worn: ${topIt.name.toLowerCase()} (${top[1]}×).`:""}${streak>1?` ${streak}-day streak.`:""}`:"nothing logged this month. tap \"wore this\" on a fit and it shows up here.";
   const box=$("cal-day");if(!CAL.sel||!byDay[CAL.sel]){box.innerHTML="";return}
   const dt=new Date(CAL.sel+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
-  box.innerHTML=`<div class="cal-day"><h3>${esc(dt)}</h3>`+byDay[CAL.sel].map(w=>`<div><div class="chat-fit">${fitItems(w.items).map(x=>cell(x)).join("")}</div>${piecesHTML(w.items)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn ghost small" data-calmq="${esc(w.id)}">ROT tries it on</button><button class="btn ghost small" data-calrm="${esc(w.id)}">Remove from log</button></div></div>`).join("")+`</div>`;
-  box.querySelectorAll("[data-calmq]").forEach(b=>b.onclick=()=>{const w=S.wears.find(x=>x.id===b.dataset.calmq);if(w)openMannequin(w.items,dt,"")});
+  box.innerHTML=`<div class="cal-day"><h3>${esc(dt)}</h3>`+byDay[CAL.sel].map(w=>`<div><div class="chat-fit">${fitItems(w.items).map(x=>cell(x)).join("")}</div>${piecesHTML(w.items)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn ghost small" data-calrm="${esc(w.id)}">Remove from log</button></div></div>`).join("")+`</div>`;
   box.querySelectorAll("[data-calrm]").forEach(b=>b.onclick=async()=>{try{await db.doc("wears/"+b.dataset.calrm).delete()}catch{toast("Couldn't remove it.")}})}
 $("cal-prev").onclick=()=>{CAL.m--;if(CAL.m<0){CAL.m=11;CAL.y--}CAL.sel=null;renderCal()};
 $("cal-next").onclick=()=>{CAL.m++;if(CAL.m>11){CAL.m=0;CAL.y++}CAL.sel=null;renderCal()};
@@ -1446,8 +1311,6 @@ $("fbf").onsubmit=async e=>{e.preventDefault();const text=$("fbf-text").value.tr
 /* ---------- saved ---------- */
 function renderSaved(){$("n-saved").textContent=S.fits.length;renderCal();const l=$("s-list");
   l.innerHTML=S.fits.length?S.fits.map(f=>fitCard(f,0,"saved")).join(""):`<div class="empty"><h3>No saved fits</h3><p>Hit Save on a fit you'd actually wear and it lands here.</p></div>`;
-  l.querySelectorAll("[data-mq]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.mq);if(f)openMannequin(f.items,f.title,f.vibe)});
-  l.querySelectorAll("[data-stand]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.stand);if(f)openStand(f.items,f.vibe)});
   l.querySelectorAll("[data-share]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.share);if(f)shareFit(f.items,f.title,f.why,f.vibe)});
   l.querySelectorAll("[data-wores]").forEach(b=>b.onclick=()=>{const f=S.fits.find(x=>x.id===b.dataset.wores);if(f)logWear(f.items,f.title)});
   l.querySelectorAll("[data-unsave]").forEach(b=>b.onclick=async()=>{try{await db.doc("fits/"+b.dataset.unsave).delete()}catch{toast("Couldn't remove.")}});}

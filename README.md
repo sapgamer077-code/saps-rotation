@@ -17,9 +17,8 @@ A closet app anyone can use: daily fits from what you own, a next-buys list that
 - **Add many.** Pick up to 30 photos at once; with Gemini each one is identified and tagged, then you review and save them all.
 - **Wear calendar.** Saved & worn shows a month of what you logged as worn, with streaks and most-worn pieces.
 - **Feedback.** You & settings → Send feedback stores reports in the `feedback_reports` table (run `supabase/feedback.sql` once).
-- **ROT's fit of the day.** ROT wears a different fit from your closet each day for the weather, or exactly what you logged as worn today.
+- **Today's pick.** A different fit from your closet each day, dressed for the weather.
 - **ROT.** Tap ROT to chat. With Gemini it answers anything about your clothes and can save fits, log wears, add wants and mark the wash when you tap to confirm.
-- **ROT in your pic.** Drop ROT into a real fit photo in one of 27 poses (looming, barrage, many arms, landing, handstand…), animated, with Manifest / Impact / Clean looks and video export, placed behind you with a dithered aura (your cut-out runs on the phone). With Gemini, ROT can rate the fit.
 - **On-body shots.** With Gemini, the fit maker looks at up to 10 of your on-body photos to judge how each piece actually sits.
 - **Share a fit.** Makes an image card of the fit for the share sheet.
 - **Next buys.** Without AI it ranks pieces from their styles by tagged pins (newer pins count more), their want-more-of list, their budget and what their closet unlocks. With Gemini it builds the list from their pins and closet.
